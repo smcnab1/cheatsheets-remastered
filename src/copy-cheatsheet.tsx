@@ -16,19 +16,20 @@ export default function CopyCheatsheet({ arguments: args }: CopyCheatsheetProps)
   const [customSheets, setCustomSheets] = useState<CustomCheatsheet[]>([]);
   const [defaultSheets, setDefaultSheets] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedSheet, setSelectedSheet] = useState<{ type: 'custom' | 'default'; id: string; title: string } | null>(null);
+  const [searchResults, setSearchResults] = useState<Array<{ type: 'custom' | 'default'; id: string; title: string; matchType: string }>>([]);
   const { pop } = useNavigation();
 
   useEffect(() => {
     loadData();
   }, []);
 
-  // If we have a query argument, try to find and copy immediately
+  // Pre-fill search if argument provided
   useEffect(() => {
-    if (args?.query && !isLoading) {
-      handleQuickCopy();
+    if (args?.query) {
+      setSearchQuery(args.query);
+      performSearch(args.query);
     }
-  }, [args?.query, isLoading, customSheets, defaultSheets]);
+  }, [args?.query, customSheets, defaultSheets]);
 
   async function loadData() {
     try {
@@ -67,40 +68,45 @@ export default function CopyCheatsheet({ arguments: args }: CopyCheatsheetProps)
       .map((file) => file.path.replace('.md', ''));
   }
 
-  async function handleQuickCopy() {
-    if (!args?.query) return;
-
-    const query = args.query.toLowerCase();
-    
-    // Search in custom cheatsheets first
-    const customMatch = customSheets.find(sheet =>
-      sheet.title.toLowerCase().includes(query) ||
-      sheet.content.toLowerCase().includes(query) ||
-      sheet.tags?.some(tag => tag.toLowerCase().includes(query)) ||
-      sheet.description?.toLowerCase().includes(query)
-    );
-
-    if (customMatch) {
-      await copyCheatsheetContent('custom', customMatch.id, customMatch.title);
+  function performSearch(query: string) {
+    if (!query.trim()) {
+      setSearchResults([]);
       return;
     }
+
+    const results: Array<{ type: 'custom' | 'default'; id: string; title: string; matchType: string }> = [];
+    const lowerQuery = query.toLowerCase();
+
+    // Search in custom cheatsheets
+    customSheets.forEach(sheet => {
+      if (filterType === 'all' || filterType === 'custom') {
+        if (sheet.title.toLowerCase().includes(lowerQuery)) {
+          results.push({ type: 'custom', id: sheet.id, title: sheet.title, matchType: 'title' });
+        } else if (sheet.content.toLowerCase().includes(lowerQuery)) {
+          results.push({ type: 'custom', id: sheet.id, title: sheet.title, matchType: 'content' });
+        } else if (sheet.tags?.some(tag => tag.toLowerCase().includes(lowerQuery))) {
+          results.push({ type: 'custom', id: sheet.id, title: sheet.title, matchType: 'tag' });
+        } else if (sheet.description?.toLowerCase().includes(lowerQuery)) {
+          results.push({ type: 'custom', id: sheet.id, title: sheet.title, matchType: 'description' });
+        }
+      }
+    });
 
     // Search in default cheatsheets
-    const defaultMatch = defaultSheets.find(sheet =>
-      sheet.toLowerCase().includes(query)
-    );
-
-    if (defaultMatch) {
-      await copyCheatsheetContent('default', defaultMatch, defaultMatch);
-      return;
+    if (filterType === 'all' || filterType === 'default') {
+      defaultSheets.forEach(sheet => {
+        if (sheet.toLowerCase().includes(lowerQuery)) {
+          results.push({ type: 'default', id: sheet, title: sheet, matchType: 'title' });
+        }
+      });
     }
 
-    // No exact match found, show toast
-    showToast({
-      style: Toast.Style.Failure,
-      title: "Not Found",
-      message: `No cheatsheet found matching "${args.query}"`
-    });
+    // Remove duplicates and limit results
+    const uniqueResults = results.filter((result, index, self) => 
+      index === self.findIndex(r => r.id === result.id)
+    ).slice(0, 10);
+
+    setSearchResults(uniqueResults);
   }
 
   async function copyCheatsheetContent(type: 'custom' | 'default', slug: string, title: string) {
@@ -137,111 +143,70 @@ export default function CopyCheatsheet({ arguments: args }: CopyCheatsheetProps)
     }
   }
 
-  // If we have arguments and are loading, show loading state
-  if (args?.query && isLoading) {
-    return (
-      <Form
-        isLoading={true}
-        actions={
-          <ActionPanel>
-            <Action title="Loading..." icon={Icon.Clock} />
-          </ActionPanel>
-        }
-      >
-        <Form.Description text={`Searching for "${args.query}"...`} />
-      </Form>
-    );
-  }
-
-  // If we have arguments and found a match, show success
-  if (args?.query && !isLoading) {
-    return (
-      <Form
-        actions={
-          <ActionPanel>
-            <Action title="Done" icon={Icon.Checkmark} onAction={pop} />
-          </ActionPanel>
-        }
-      >
-        <Form.Description text={`"${args.query}" copied to clipboard!`} />
-      </Form>
-    );
-  }
-
-  // Default interface for when no arguments are provided
   return (
     <Form
+      isLoading={isLoading}
       actions={
         <ActionPanel>
-          <Action title="Copy Cheatsheet" icon={Icon.CopyClipboard} onAction={() => {
-            if (selectedSheet) {
-              copyCheatsheetContent(selectedSheet.type, selectedSheet.id, selectedSheet.title);
+          <Action title="Copy Selected" icon={Icon.CopyClipboard} onAction={() => {
+            if (searchResults.length > 0) {
+              const firstResult = searchResults[0];
+              copyCheatsheetContent(firstResult.type, firstResult.id, firstResult.title);
             }
           }} />
           <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={loadData} />
         </ActionPanel>
       }
     >
+      <Form.TextField
+        id="search"
+        title="Search Cheatsheets"
+        placeholder="Type to search cheatsheets..."
+        value={searchQuery}
+        onChange={(value) => {
+          setSearchQuery(value);
+          performSearch(value);
+        }}
+      />
+
       <Form.Dropdown
         id="type"
-        title="Cheatsheet Type"
+        title="Filter by Type"
         value={filterType}
-        onChange={(value) => setFilterType(value as 'all' | 'custom' | 'default')}
+        onChange={(value) => {
+          setFilterType(value as 'all' | 'custom' | 'default');
+          if (searchQuery) {
+            performSearch(searchQuery);
+          }
+        }}
       >
         <Form.Dropdown.Item title="All Types" value="all" icon={Icon.List} />
         <Form.Dropdown.Item title="Custom Only" value="custom" icon={Icon.Document} />
         <Form.Dropdown.Item title="Default Only" value="default" icon={Icon.Globe} />
       </Form.Dropdown>
 
-      <Form.Dropdown
-        id="sheet"
-        title="Select Cheatsheet"
-        value={selectedSheet?.id || ''}
-        onChange={(value) => {
-          const [type, id] = value.split('|');
-          if (type === 'custom') {
-            const sheet = customSheets.find(s => s.id === id);
-            if (sheet) {
-              setSelectedSheet({
-                type: 'custom',
-                id: sheet.id,
-                title: sheet.title
-              });
-            }
-          } else {
-            setSelectedSheet({
-              type: 'default',
-              id: id,
-              title: id
-            });
-          }
-        }}
-      >
-        {filterType === 'all' || filterType === 'custom' ? (
-          customSheets.map((sheet) => (
-            <Form.Dropdown.Item
-              key={`custom|${sheet.id}`}
-              title={sheet.title}
-              value={`custom|${sheet.id}`}
-              icon={Icon.Document}
-            />
-          ))
-        ) : null}
-        
-        {filterType === 'all' || filterType === 'default' ? (
-          defaultSheets.map((sheet) => (
-            <Form.Dropdown.Item
-              key={`default|${sheet}`}
-              title={sheet}
-              value={`default|${sheet}`}
-              icon={Icon.Globe}
-            />
-          ))
-        ) : null}
-      </Form.Dropdown>
+      {searchQuery && (
+        <Form.Description 
+          text={`${searchResults.length} cheatsheet${searchResults.length !== 1 ? 's' : ''} found for "${searchQuery}"`} 
+        />
+      )}
 
-      {selectedSheet && (
-        <Form.Description text={`Selected: ${selectedSheet.title}`} />
+      {searchResults.length > 0 && (
+        <Form.Description 
+          text="Press Cmd+Enter to copy the first result, or use the action panel to copy specific results."
+        />
+      )}
+
+      {searchQuery && searchResults.length === 0 && !isLoading && (
+        <Form.Description 
+          text={`No cheatsheets found matching "${searchQuery}". Try a different search term.`}
+        />
+      )}
+
+      {!searchQuery && (
+        <Form.Description 
+          text="Start typing to search for cheatsheets. Results will appear below."
+        />
       )}
     </Form>
   );
