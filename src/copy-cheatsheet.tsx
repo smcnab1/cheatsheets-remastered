@@ -1,5 +1,5 @@
 import React from 'react';
-import { Form, ActionPanel, Action, Icon, showToast, Toast, List, useNavigation } from '@raycast/api';
+import { Form, ActionPanel, Action, Icon, showToast, Toast, useNavigation } from '@raycast/api';
 import { useState, useEffect } from 'react';
 import Service, { CustomCheatsheet } from './service';
 
@@ -16,11 +16,19 @@ export default function CopyCheatsheet({ arguments: args }: CopyCheatsheetProps)
   const [customSheets, setCustomSheets] = useState<CustomCheatsheet[]>([]);
   const [defaultSheets, setDefaultSheets] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedSheet, setSelectedSheet] = useState<{ type: 'custom' | 'default'; id: string; title: string } | null>(null);
   const { pop } = useNavigation();
 
   useEffect(() => {
     loadData();
   }, []);
+
+  // If we have a query argument, try to find and copy immediately
+  useEffect(() => {
+    if (args?.query && !isLoading) {
+      handleQuickCopy();
+    }
+  }, [args?.query, isLoading, customSheets, defaultSheets]);
 
   async function loadData() {
     try {
@@ -59,24 +67,43 @@ export default function CopyCheatsheet({ arguments: args }: CopyCheatsheetProps)
       .map((file) => file.path.replace('.md', ''));
   }
 
-  const filteredCustomSheets = customSheets.filter(sheet =>
-    filterType === 'all' || filterType === 'custom'
-  ).filter(sheet =>
-    searchQuery === '' || 
-    sheet.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    sheet.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    sheet.tags?.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    sheet.description?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  async function handleQuickCopy() {
+    if (!args?.query) return;
 
-  const filteredDefaultSheets = defaultSheets.filter(sheet =>
-    filterType === 'all' || filterType === 'default'
-  ).filter(sheet =>
-    searchQuery === '' || 
-    sheet.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+    const query = args.query.toLowerCase();
+    
+    // Search in custom cheatsheets first
+    const customMatch = customSheets.find(sheet =>
+      sheet.title.toLowerCase().includes(query) ||
+      sheet.content.toLowerCase().includes(query) ||
+      sheet.tags?.some(tag => tag.toLowerCase().includes(query)) ||
+      sheet.description?.toLowerCase().includes(query)
+    );
 
-  async function handleCopyCheatsheet(type: 'custom' | 'default', slug: string, title: string) {
+    if (customMatch) {
+      await copyCheatsheetContent('custom', customMatch.id, customMatch.title);
+      return;
+    }
+
+    // Search in default cheatsheets
+    const defaultMatch = defaultSheets.find(sheet =>
+      sheet.toLowerCase().includes(query)
+    );
+
+    if (defaultMatch) {
+      await copyCheatsheetContent('default', defaultMatch, defaultMatch);
+      return;
+    }
+
+    // No exact match found, show toast
+    showToast({
+      style: Toast.Style.Failure,
+      title: "Not Found",
+      message: `No cheatsheet found matching "${args.query}"`
+    });
+  }
+
+  async function copyCheatsheetContent(type: 'custom' | 'default', slug: string, title: string) {
     try {
       let content = '';
       
@@ -110,99 +137,112 @@ export default function CopyCheatsheet({ arguments: args }: CopyCheatsheetProps)
     }
   }
 
+  // If we have arguments and are loading, show loading state
+  if (args?.query && isLoading) {
+    return (
+      <Form
+        isLoading={true}
+        actions={
+          <ActionPanel>
+            <Action title="Loading..." icon={Icon.Clock} />
+          </ActionPanel>
+        }
+      >
+        <Form.Description text={`Searching for "${args.query}"...`} />
+      </Form>
+    );
+  }
+
+  // If we have arguments and found a match, show success
+  if (args?.query && !isLoading) {
+    return (
+      <Form
+        actions={
+          <ActionPanel>
+            <Action title="Done" icon={Icon.Checkmark} onAction={pop} />
+          </ActionPanel>
+        }
+      >
+        <Form.Description text={`"${args.query}" copied to clipboard!`} />
+      </Form>
+    );
+  }
+
+  // Default interface for when no arguments are provided
   return (
-    <List
-      isLoading={isLoading}
-      searchBarPlaceholder="Search cheatsheets to copy..."
-      searchText={searchQuery}
-      onSearchTextChange={setSearchQuery}
-      searchBarAccessory={
-        <List.Dropdown
-          tooltip="Filter by Type"
-          value={filterType}
-          onChange={(value) => setFilterType(value as 'all' | 'custom' | 'default')}
-        >
-          <List.Dropdown.Item title="All Types" value="all" icon={Icon.List} />
-          <List.Dropdown.Item title="Custom Only" value="custom" icon={Icon.Document} />
-          <List.Dropdown.Item title="Default Only" value="default" icon={Icon.Globe} />
-        </List.Dropdown>
-      }
+    <Form
       actions={
         <ActionPanel>
+          <Action title="Copy Cheatsheet" icon={Icon.CopyClipboard} onAction={() => {
+            if (selectedSheet) {
+              copyCheatsheetContent(selectedSheet.type, selectedSheet.id, selectedSheet.title);
+            }
+          }} />
           <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={loadData} />
         </ActionPanel>
       }
     >
-      {filteredCustomSheets.length === 0 && filteredDefaultSheets.length === 0 && !isLoading ? (
-        <List.EmptyView
-          icon={Icon.Document}
-          title="No cheatsheets found"
-          description={searchQuery ? `No cheatsheets match "${searchQuery}"` : "No cheatsheets available"}
-        />
-      ) : (
-        <>
-          {filteredCustomSheets.length > 0 && (
-            <List.Section title="Custom Cheatsheets" subtitle={`${filteredCustomSheets.length} custom sheets`}>
-              {filteredCustomSheets.map((sheet) => (
-                <List.Item
-                  key={sheet.id}
-                  title={sheet.title}
-                  subtitle={sheet.description || "No description"}
-                  icon={Icon.Document}
-                  accessories={[
-                    { text: "Custom", icon: Icon.Tag },
-                    { date: new Date(sheet.updatedAt) }
-                  ]}
-                  actions={
-                    <ActionPanel>
-                      <Action
-                        title="Copy Content"
-                        icon={Icon.CopyClipboard}
-                        onAction={() => handleCopyCheatsheet('custom', sheet.id, sheet.title)}
-                      />
-                      <Action.CopyToClipboard
-                        title="Copy Title"
-                        content={sheet.title}
-                        icon={Icon.CopyClipboard}
-                      />
-                    </ActionPanel>
-                  }
-                />
-              ))}
-            </List.Section>
-          )}
+      <Form.Dropdown
+        id="type"
+        title="Cheatsheet Type"
+        value={filterType}
+        onChange={(value) => setFilterType(value as 'all' | 'custom' | 'default')}
+      >
+        <Form.Dropdown.Item title="All Types" value="all" icon={Icon.List} />
+        <Form.Dropdown.Item title="Custom Only" value="custom" icon={Icon.Document} />
+        <Form.Dropdown.Item title="Default Only" value="default" icon={Icon.Globe} />
+      </Form.Dropdown>
 
-          {filteredDefaultSheets.length > 0 && (
-            <List.Section title="Default Cheatsheets" subtitle={`${filteredDefaultSheets.length} default sheets`}>
-              {filteredDefaultSheets.map((sheet) => (
-                <List.Item
-                  key={sheet}
-                  title={sheet}
-                  subtitle="From online sources"
-                  icon={Icon.Globe}
-                  accessories={[
-                    { text: "Default", icon: Icon.Globe }
-                  ]}
-                  actions={
-                    <ActionPanel>
-                      <Action
-                        title="Copy Content"
-                        icon={Icon.CopyClipboard}
-                        onAction={() => handleCopyCheatsheet('default', sheet, sheet)}
-                      />
-                      <Action.CopyToClipboard
-                        title="Copy Title"
-                        content={sheet}
-                        icon={Icon.CopyClipboard}
-                      />
-                    </ActionPanel>
-                  }
-                />
-              ))}
-            </List.Section>
-          )}
-        </>
+      <Form.Dropdown
+        id="sheet"
+        title="Select Cheatsheet"
+        value={selectedSheet?.id || ''}
+        onChange={(value) => {
+          const [type, id] = value.split('|');
+          if (type === 'custom') {
+            const sheet = customSheets.find(s => s.id === id);
+            if (sheet) {
+              setSelectedSheet({
+                type: 'custom',
+                id: sheet.id,
+                title: sheet.title
+              });
+            }
+          } else {
+            setSelectedSheet({
+              type: 'default',
+              id: id,
+              title: id
+            });
+          }
+        }}
+      >
+        {filterType === 'all' || filterType === 'custom' ? (
+          customSheets.map((sheet) => (
+            <Form.Dropdown.Item
+              key={`custom|${sheet.id}`}
+              title={sheet.title}
+              value={`custom|${sheet.id}`}
+              icon={Icon.Document}
+            />
+          ))
+        ) : null}
+        
+        {filterType === 'all' || filterType === 'default' ? (
+          defaultSheets.map((sheet) => (
+            <Form.Dropdown.Item
+              key={`default|${sheet}`}
+              title={sheet}
+              value={`default|${sheet}`}
+              icon={Icon.Globe}
+            />
+          ))
+        ) : null}
+      </Form.Dropdown>
+
+      {selectedSheet && (
+        <Form.Description text={`Selected: ${selectedSheet.title}`} />
       )}
-    </List>
+    </Form>
   );
 }
