@@ -2,9 +2,8 @@ import React from 'react';
 import { Action, ActionPanel, Detail, Icon, List, Form, useNavigation, showToast, Toast, confirmAlert, Alert, LocalStorage } from '@raycast/api';
 import { useEffect, useState } from 'react';
 
-import Service, { CustomCheatsheet } from './service';
+import Service, { CustomCheatsheet, Preferences, OfflineCheatsheet } from './service';
 import {
-  getSheets,
   stripFrontmatter,
   stripTemplateTags,
   formatTables,
@@ -62,6 +61,8 @@ function useDraftPersistence(key: string, defaultValue: string) {
 function Command() {
   const [sheets, setSheets] = useState<string[]>([]);
   const [customSheets, setCustomSheets] = useState<CustomCheatsheet[]>([]);
+  const [offlineSheets, setOfflineSheets] = useState<OfflineCheatsheet[]>([]);
+  const [preferences, setPreferences] = useState<Preferences | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -74,14 +75,46 @@ function Command() {
       setIsLoading(true);
       setError(null);
       
-      const [files, custom] = await Promise.all([
-        Service.listFiles(),
-        Service.getCustomCheatsheets()
+      // Load preferences first
+      const prefs = await Service.getPreferences();
+      setPreferences(prefs);
+      
+      // Check if we should update based on preferences
+      const shouldUpdate = Service.shouldUpdate(prefs);
+      
+      if (shouldUpdate && prefs.enableOfflineStorage) {
+        // Show update notification
+        showToast({
+          style: Toast.Style.Animated,
+          title: "Checking for updates",
+          message: "Fetching latest cheatsheets..."
+        });
+      }
+      
+      const [files, custom, offline] = await Promise.all([
+        shouldUpdate ? Service.listFiles() : Promise.resolve([]),
+        Service.getCustomCheatsheets(),
+        Service.getOfflineCheatsheets()
       ]);
       
-      const sheets = getSheets(files);
-      setSheets(sheets);
+      if (files.length > 0) {
+        const sheets = getSheets(files);
+        setSheets(sheets);
+      } else if (offline.length > 0) {
+        // Use offline data if no fresh data available
+        const offlineSlugs = offline.map(sheet => sheet.slug);
+        setSheets(offlineSlugs);
+      }
+      
       setCustomSheets(custom);
+      setOfflineSheets(offline);
+      
+      // Update preferences if we checked for updates
+      if (shouldUpdate) {
+        prefs.lastUpdateCheck = Date.now();
+        await Service.setPreferences(prefs);
+        setPreferences(prefs);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load cheatsheets');
       showToast({
@@ -134,6 +167,38 @@ function Command() {
     });
   }
 
+  async function handleDownloadAll() {
+    try {
+      const result = await Service.downloadAllForOffline();
+      // Reload data to show updated offline status
+      await loadData();
+    } catch (error) {
+      // Error already shown by service
+    }
+  }
+
+  async function handleClearOffline() {
+    const confirmed = await confirmAlert({
+      title: "Clear Offline Storage",
+      message: "This will remove all locally stored DevHints cheatsheets. This action cannot be undone.",
+      primaryAction: {
+        title: "Clear All",
+        style: Alert.ActionStyle.Destructive,
+      },
+    });
+
+    if (confirmed) {
+      try {
+        await Service.clearOfflineStorage();
+        setOfflineSheets([]);
+        // Reload data
+        await loadData();
+      } catch (error) {
+        // Error already shown by service
+      }
+    }
+  }
+
   if (error) {
     return (
       <Detail
@@ -156,6 +221,12 @@ function Command() {
         <ActionPanel>
           <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={handleRefresh} />
           <Action title="Create Custom Cheatsheet" icon={Icon.Plus} onAction={() => {}} />
+          {preferences?.enableOfflineStorage && (
+            <>
+              <Action title="Download All for Offline" icon={Icon.Download} onAction={handleDownloadAll} />
+              <Action title="Clear Offline Storage" icon={Icon.Trash} onAction={handleClearOffline} />
+            </>
+          )}
         </ActionPanel>
       }
     >
@@ -220,44 +291,110 @@ function Command() {
       </List.Section>
 
       <List.Section title="DevHints Cheatsheets" subtitle={`${sheets.length} sheets from devhints.io`}>
-        {sheets.map((sheet) => (
+        {sheets.map((sheet) => {
+          const isOffline = offlineSheets.some(offline => offline.slug === sheet);
+          const offlineSheet = offlineSheets.find(offline => offline.slug === sheet);
+          
+          return (
+            <List.Item
+              key={sheet}
+              title={sheet}
+              subtitle={`From DevHints${isOffline ? ' • Offline' : ''}`}
+              icon={getCheatsheetIcon(sheet)}
+              accessories={[
+                { text: "DevHints", icon: Icon.Globe },
+                { icon: Icon.Link },
+                ...(isOffline ? [{ text: "Offline", icon: Icon.Download }] : []),
+                ...(offlineSheet ? [{ date: new Date(offlineSheet.lastUpdated) }] : [])
+              ]}
+              actions={
+                <ActionPanel>
+                  <ActionPanel.Section title="View">
+                    <Action.Push
+                      title="Open Cheatsheet"
+                      icon={Icon.Window}
+                      target={<SheetView slug={sheet} />}
+                    />
+                    <Action.OpenInBrowser 
+                      url={Service.urlFor(sheet)}
+                      title="Open in Browser"
+                      icon={Icon.Link}
+                    />
+                  </ActionPanel.Section>
+                  <ActionPanel.Section title="Actions">
+                    <Action.CopyToClipboard
+                      title="Copy Title"
+                      content={sheet}
+                      icon={Icon.CopyClipboard}
+                    />
+                    {preferences?.enableOfflineStorage && (
+                      <Action
+                        title={isOffline ? "Update Offline Copy" : "Download for Offline"}
+                        icon={isOffline ? Icon.ArrowClockwise : Icon.Download}
+                        onAction={async () => {
+                          try {
+                            const content = await Service.getSheet(sheet);
+                            await Service.saveOfflineCheatsheet(sheet, content);
+                            showToast({
+                              style: Toast.Style.Success,
+                              title: "Downloaded",
+                              message: `${sheet} is now available offline`
+                            });
+                            // Reload offline data
+                            const updated = await Service.getOfflineCheatsheets();
+                            setOfflineSheets(updated);
+                          } catch (error) {
+                            showToast({
+                              style: Toast.Style.Failure,
+                              title: "Download Failed",
+                              message: `Failed to download ${sheet}`
+                            });
+                          }
+                        }}
+                      />
+                    )}
+                  </ActionPanel.Section>
+                </ActionPanel>
+              }
+            />
+          );
+        })}
+      </List.Section>
+
+      {preferences?.enableOfflineStorage && offlineSheets.length > 0 && (
+        <List.Section title="Offline Storage" subtitle={`${offlineSheets.length} sheets stored locally`}>
           <List.Item
-            key={sheet}
-            title={sheet}
-            subtitle="From DevHints"
-            icon={getCheatsheetIcon(sheet)}
+            title="Offline Storage Info"
+            subtitle={`${offlineSheets.length} cheatsheets available offline`}
+            icon={Icon.Download}
             accessories={[
-              { text: "DevHints", icon: Icon.Globe },
-              { icon: Icon.Link }
+              { text: "Offline", icon: Icon.Download },
+              { text: `${Math.round(offlineSheets.reduce((sum, sheet) => sum + sheet.size, 0) / 1024)} KB` }
             ]}
             actions={
               <ActionPanel>
-                <ActionPanel.Section title="View">
-                  <Action.Push
-                    title="Open Cheatsheet"
-                    icon={Icon.Window}
-                    target={<SheetView slug={sheet} />}
-                  />
-                  <Action.OpenInBrowser 
-                    url={Service.urlFor(sheet)}
-                    title="Open in Browser"
-                    icon={Icon.Link}
-                  />
-                </ActionPanel.Section>
-                <ActionPanel.Section title="Actions">
-                  <Action.CopyToClipboard
-                    title="Copy Title"
-                    content={sheet}
-                    icon={Icon.CopyClipboard}
-                  />
-                </ActionPanel.Section>
+                <Action title="Download All for Offline" icon={Icon.Download} onAction={handleDownloadAll} />
+                <Action title="Clear Offline Storage" icon={Icon.Trash} onAction={handleClearOffline} />
               </ActionPanel>
             }
           />
-        ))}
-      </List.Section>
+        </List.Section>
+      )}
     </List>
   );
+}
+
+// Helper function to get sheets from files
+function getSheets(files: any[]): string[] {
+  return files
+    .filter((file) => {
+      const isDir = file.type === 'tree';
+      const isMarkdown = file.path.endsWith('.md');
+      const adminFiles = ['CONTRIBUTING', 'README', 'index', 'index@2016'];
+      const isAdminFile = adminFiles.some(adminFile => file.path.startsWith(adminFile));
+      return !isDir && isMarkdown && !isAdminFile;
+    })
+    .map((file) => file.path.replace('.md', ''));
 }
 
 interface SheetProps {

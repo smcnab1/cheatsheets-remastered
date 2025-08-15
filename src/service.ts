@@ -5,6 +5,20 @@ const BRANCH = 'master';
 const OWNER = 'rstacruz';
 const REPO = 'cheatsheets';
 
+interface Preferences {
+  enableOfflineStorage: boolean;
+  updateFrequency: 'every-use' | 'weekly' | 'monthly' | 'never';
+  lastUpdateCheck: number;
+  autoUpdate: boolean;
+}
+
+interface OfflineCheatsheet {
+  slug: string;
+  content: string;
+  lastUpdated: number;
+  size: number;
+}
+
 // Configure axios with better defaults and retry logic
 const listClient = axios.create({
   baseURL: `https://api.github.com/repos/${OWNER}/${REPO}/git/trees`,
@@ -188,6 +202,112 @@ services:
 };
 
 class Service {
+  // Preferences management
+  static async getPreferences(): Promise<Preferences> {
+    try {
+      const prefs = await LocalStorage.getItem<string>('cheatsheet-preferences');
+      if (prefs) {
+        return JSON.parse(prefs);
+      }
+    } catch (error) {
+      console.warn('Failed to load preferences:', error);
+    }
+    
+    // Default preferences
+    return {
+      enableOfflineStorage: true,
+      updateFrequency: 'weekly',
+      lastUpdateCheck: Date.now(),
+      autoUpdate: true
+    };
+  }
+
+  static async setPreferences(preferences: Preferences): Promise<void> {
+    await LocalStorage.setItem('cheatsheet-preferences', JSON.stringify(preferences));
+  }
+
+  // Check if update is needed based on frequency
+  static shouldUpdate(preferences: Preferences): boolean {
+    if (!preferences.autoUpdate) return false;
+    
+    const now = Date.now();
+    const lastCheck = preferences.lastUpdateCheck;
+    
+    switch (preferences.updateFrequency) {
+      case 'every-use':
+        return true;
+      case 'weekly':
+        return (now - lastCheck) > (7 * 24 * 60 * 60 * 1000);
+      case 'monthly':
+        return (now - lastCheck) > (30 * 24 * 60 * 60 * 1000);
+      case 'never':
+        return false;
+      default:
+        return false;
+    }
+  }
+
+  // Offline storage management
+  static async getOfflineCheatsheets(): Promise<OfflineCheatsheet[]> {
+    try {
+      const offlineData = await LocalStorage.getItem<string>('offline-cheatsheets');
+      return offlineData ? JSON.parse(offlineData) : [];
+    } catch (error) {
+      console.warn('Failed to load offline cheatsheets:', error);
+      return [];
+    }
+  }
+
+  static async saveOfflineCheatsheet(slug: string, content: string): Promise<void> {
+    try {
+      const offlineSheets = await this.getOfflineCheatsheets();
+      const existingIndex = offlineSheets.findIndex(sheet => sheet.slug === slug);
+      
+      const offlineSheet: OfflineCheatsheet = {
+        slug,
+        content,
+        lastUpdated: Date.now(),
+        size: content.length
+      };
+      
+      if (existingIndex >= 0) {
+        offlineSheets[existingIndex] = offlineSheet;
+      } else {
+        offlineSheets.push(offlineSheet);
+      }
+      
+      await LocalStorage.setItem('offline-cheatsheets', JSON.stringify(offlineSheets));
+    } catch (error) {
+      console.error('Failed to save offline cheatsheet:', error);
+      throw error;
+    }
+  }
+
+  static async getOfflineCheatsheet(slug: string): Promise<OfflineCheatsheet | null> {
+    try {
+      const offlineSheets = await this.getOfflineCheatsheets();
+      return offlineSheets.find(sheet => sheet.slug === slug) || null;
+    } catch (error) {
+      console.error('Failed to get offline cheatsheet:', error);
+      return null;
+    }
+  }
+
+  static async clearOfflineStorage(): Promise<void> {
+    try {
+      await LocalStorage.removeItem('offline-cheatsheets');
+      showToast({
+        style: Toast.Style.Success,
+        title: "Cleared",
+        message: "Offline storage has been cleared"
+      });
+    } catch (error) {
+      console.error('Failed to clear offline storage:', error);
+      throw error;
+    }
+  }
+
+  // Enhanced list files with offline storage
   static async listFiles(): Promise<File[]> {
     try {
       const response = await listClient.get<ListResponse>(`/${BRANCH}`);
@@ -200,7 +320,7 @@ class Service {
         showToast({
           style: Toast.Style.Failure,
           title: "Network Error",
-          message: "Using offline mock data"
+          message: "Using offline data"
         });
       }
       
@@ -208,24 +328,115 @@ class Service {
     }
   }
 
+  // Enhanced get sheet with offline storage
   static async getSheet(slug: string): Promise<string> {
     try {
-      const response = await fileClient.get<string>(`/${slug}.md`);
-      return response.data;
-    } catch (error) {
-      console.warn(`Failed to fetch sheet ${slug}, using mock data:`, error);
+      const preferences = await this.getPreferences();
       
+      // Check offline storage first if enabled
+      if (preferences.enableOfflineStorage) {
+        const offlineSheet = await this.getOfflineCheatsheet(slug);
+        if (offlineSheet) {
+          console.log(`Using offline version of ${slug}`);
+          return offlineSheet.content;
+        }
+      }
+      
+      // Fetch from GitHub
+      const response = await fileClient.get<string>(`/${slug}.md`);
+      const content = response.data;
+      
+      // Save to offline storage if enabled
+      if (preferences.enableOfflineStorage) {
+        try {
+          await this.saveOfflineCheatsheet(slug, content);
+        } catch (error) {
+          console.warn('Failed to save to offline storage:', error);
+        }
+      }
+      
+      return content;
+    } catch (error) {
+      console.warn(`Failed to fetch sheet ${slug}, trying offline storage:`, error);
+      
+      // Try offline storage as fallback
+      const prefs = await this.getPreferences();
+      if (prefs?.enableOfflineStorage) {
+        const offlineSheet = await this.getOfflineCheatsheet(slug);
+        if (offlineSheet) {
+          showToast({
+            style: Toast.Style.Failure,
+            title: "Offline Mode",
+            message: `Using cached data for ${slug}`
+          });
+          return offlineSheet.content;
+        }
+      }
+      
+      // Use mock data as last resort
       const mockContent = mockSheets[slug as keyof typeof mockSheets];
       if (mockContent) {
         showToast({
           style: Toast.Style.Failure,
           title: "Offline Mode",
-          message: `Using cached data for ${slug}`
+          message: `Using mock data for ${slug}`
         });
         return mockContent;
       }
       
       return `# ${slug}\n\nContent not available. Please check your internet connection.`;
+    }
+  }
+
+  // Bulk download for offline storage
+  static async downloadAllForOffline(): Promise<{ success: number; failed: number }> {
+    try {
+      const preferences = await this.getPreferences();
+      if (!preferences.enableOfflineStorage) {
+        throw new Error('Offline storage is disabled');
+      }
+      
+      showToast({
+        style: Toast.Style.Animated,
+        title: "Downloading",
+        message: "Fetching all cheatsheets for offline use..."
+      });
+      
+      const files = await this.listFiles();
+      const sheets = getSheets(files);
+      let success = 0;
+      let failed = 0;
+      
+      for (const sheet of sheets) {
+        try {
+          const content = await this.getSheet(sheet);
+          await this.saveOfflineCheatsheet(sheet, content);
+          success++;
+        } catch (error) {
+          console.warn(`Failed to download ${sheet}:`, error);
+          failed++;
+        }
+      }
+      
+      // Update preferences
+      preferences.lastUpdateCheck = Date.now();
+      await this.setPreferences(preferences);
+      
+      showToast({
+        style: Toast.Style.Success,
+        title: "Download Complete",
+        message: `${success} cheatsheets downloaded, ${failed} failed`
+      });
+      
+      return { success, failed };
+    } catch (error) {
+      console.error('Failed to download all cheatsheets:', error);
+      showToast({
+        style: Toast.Style.Failure,
+        title: "Download Failed",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
+      throw error;
     }
   }
 
@@ -427,5 +638,18 @@ class Service {
   }
 }
 
+// Helper function to get sheets from files
+function getSheets(files: File[]): string[] {
+  return files
+    .filter((file) => {
+      const isDir = file.type === 'tree';
+      const isMarkdown = file.path.endsWith('.md');
+      const adminFiles = ['CONTRIBUTING', 'README', 'index', 'index@2016'];
+      const isAdminFile = adminFiles.some(adminFile => file.path.startsWith(adminFile));
+      return !isDir && isMarkdown && !isAdminFile;
+    })
+    .map((file) => file.path.replace('.md', ''));
+}
+
 export default Service;
-export type { File, CustomCheatsheet };
+export type { File, CustomCheatsheet, Preferences, OfflineCheatsheet };

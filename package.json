@@ -18,6 +18,12 @@
       "title": "Show Cheatsheets",
       "description": "List all cheatsheets",
       "mode": "view"
+    },
+    {
+      "name": "preferences",
+      "title": "Preferences",
+      "description": "Manage offline storage and update settings",
+      "mode": "view"
     }
   ],
   "dependencies": {
