@@ -1,3 +1,4 @@
+import React from 'react';
 import { Action, ActionPanel, Detail, Icon, List, Form, useNavigation, confirmAlert, Alert } from '@raycast/api';
 import { useEffect, useState } from 'react';
 import Service, { CustomCheatsheet } from './service';

@@ -1,16 +1,27 @@
 import axios from 'axios';
-import { LocalStorage } from '@raycast/api';
+import { LocalStorage, showToast, Toast } from '@raycast/api';
 
 const BRANCH = 'master';
 const OWNER = 'rstacruz';
 const REPO = 'cheatsheets';
 
+// Configure axios with better defaults and retry logic
 const listClient = axios.create({
   baseURL: `https://api.github.com/repos/${OWNER}/${REPO}/git/trees`,
+  timeout: 10000,
+  headers: {
+    'Accept': 'application/vnd.github.v3+json',
+    'User-Agent': 'Cheatsheets-Remastered-Raycast'
+  }
 });
 
 const fileClient = axios.create({
   baseURL: `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}`,
+  timeout: 15000,
+  headers: {
+    'Accept': 'text/plain',
+    'User-Agent': 'Cheatsheets-Remastered-Raycast'
+  }
 });
 
 interface ListResponse {
@@ -34,9 +45,11 @@ interface CustomCheatsheet {
   content: string;
   createdAt: number;
   updatedAt: number;
+  tags?: string[];
+  description?: string;
 }
 
-// Mock data for development
+// Enhanced mock data for development
 const mockFiles: File[] = [
   {
     path: 'javascript.md',
@@ -61,6 +74,14 @@ const mockFiles: File[] = [
     sha: 'mock-sha-3',
     size: 1536,
     url: 'mock-url-3'
+  },
+  {
+    path: 'docker.md',
+    mode: '100644',
+    type: 'blob',
+    sha: 'mock-sha-4',
+    size: 2048,
+    url: 'mock-url-4'
   }
 ];
 
@@ -81,6 +102,18 @@ function greet(name) {
 }
 
 const arrowFunc = (name) => \`Hello, \${name}!\`;
+\`\`\`
+
+## Modern Features
+\`\`\`javascript
+// Destructuring
+const { name, age } = person;
+
+// Spread operator
+const newArray = [...oldArray, newItem];
+
+// Optional chaining
+const value = obj?.prop?.subProp;
 \`\`\``,
   'python': `# Python Cheatsheet
 
@@ -97,6 +130,15 @@ def greet(name):
     return f"Hello, {name}!"
 
 lambda_func = lambda name: f"Hello, {name}!"
+\`\`\`
+
+## Data Structures
+\`\`\`python
+# List comprehension
+squares = [x**2 for x in range(10)]
+
+# Dictionary comprehension
+word_counts = {word: text.count(word) for word in set(text.split())}
 \`\`\``,
   'git': `# Git Cheatsheet
 
@@ -113,6 +155,35 @@ git push origin main
 git branch feature-name
 git checkout feature-name
 git merge feature-name
+\`\`\`
+
+## Advanced
+\`\`\`bash
+# Stash changes
+git stash
+git stash pop
+
+# Reset to previous commit
+git reset --hard HEAD~1
+\`\`\``,
+  'docker': `# Docker Cheatsheet
+
+## Basic Commands
+\`\`\`bash
+docker build -t image-name .
+docker run -d -p 8080:80 image-name
+docker ps
+docker stop container-id
+\`\`\`
+
+## Docker Compose
+\`\`\`yaml
+version: '3.8'
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
 \`\`\``
 };
 
@@ -123,6 +194,16 @@ class Service {
       return response.data.tree;
     } catch (error) {
       console.warn('Failed to fetch from GitHub API, using mock data:', error);
+      
+      // Show toast for network errors
+      if (axios.isAxiosError(error) && error.code === 'ENOTFOUND') {
+        showToast({
+          style: Toast.Style.Failure,
+          title: "Network Error",
+          message: "Using offline mock data"
+        });
+      }
+      
       return mockFiles;
     }
   }
@@ -133,7 +214,18 @@ class Service {
       return response.data;
     } catch (error) {
       console.warn(`Failed to fetch sheet ${slug}, using mock data:`, error);
-      return mockSheets[slug as keyof typeof mockSheets] || `# ${slug}\n\nContent not available.`;
+      
+      const mockContent = mockSheets[slug as keyof typeof mockSheets];
+      if (mockContent) {
+        showToast({
+          style: Toast.Style.Failure,
+          title: "Offline Mode",
+          message: `Using cached data for ${slug}`
+        });
+        return mockContent;
+      }
+      
+      return `# ${slug}\n\nContent not available. Please check your internet connection.`;
     }
   }
 
@@ -141,62 +233,197 @@ class Service {
     return `https://devhints.io/${slug}`;
   }
 
-  // Custom cheatsheet methods
+  // Enhanced custom cheatsheet methods with validation
   static async getCustomCheatsheets(): Promise<CustomCheatsheet[]> {
     try {
       const customSheetsJson = await LocalStorage.getItem<string>('custom-cheatsheets');
-      return customSheetsJson ? JSON.parse(customSheetsJson) : [];
+      const sheets = customSheetsJson ? JSON.parse(customSheetsJson) : [];
+      
+      // Validate and clean data
+      return sheets.filter((sheet: any) => 
+        sheet && 
+        typeof sheet.id === 'string' && 
+        typeof sheet.title === 'string' && 
+        typeof sheet.content === 'string' &&
+        typeof sheet.createdAt === 'number' &&
+        typeof sheet.updatedAt === 'number'
+      );
     } catch (error) {
       console.warn('Failed to get custom cheatsheets:', error);
+      showToast({
+        style: Toast.Style.Failure,
+        title: "Storage Error",
+        message: "Failed to load custom cheatsheets"
+      });
       return [];
     }
   }
 
-  static async createCustomCheatsheet(title: string, content: string): Promise<CustomCheatsheet> {
-    const customSheets = await this.getCustomCheatsheets();
-    const newSheet: CustomCheatsheet = {
-      id: `custom-${Date.now()}`,
-      title,
-      content,
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    };
-    
-    customSheets.push(newSheet);
-    await LocalStorage.setItem('custom-cheatsheets', JSON.stringify(customSheets));
-    return newSheet;
+  static async createCustomCheatsheet(title: string, content: string, tags?: string[], description?: string): Promise<CustomCheatsheet> {
+    try {
+      // Validate input
+      if (!title.trim() || !content.trim()) {
+        throw new Error('Title and content are required');
+      }
+
+      const customSheets = await this.getCustomCheatsheets();
+      const newSheet: CustomCheatsheet = {
+        id: `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        title: title.trim(),
+        content: content.trim(),
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        tags: tags?.filter(tag => tag.trim()),
+        description: description?.trim()
+      };
+      
+      customSheets.push(newSheet);
+      await LocalStorage.setItem('custom-cheatsheets', JSON.stringify(customSheets));
+      
+      showToast({
+        style: Toast.Style.Success,
+        title: "Created",
+        message: `"${title}" has been added`
+      });
+      
+      return newSheet;
+    } catch (error) {
+      console.error('Failed to create custom cheatsheet:', error);
+      throw error;
+    }
   }
 
-  static async updateCustomCheatsheet(id: string, title: string, content: string): Promise<CustomCheatsheet | null> {
-    const customSheets = await this.getCustomCheatsheets();
-    const index = customSheets.findIndex(sheet => sheet.id === id);
-    
-    if (index === -1) return null;
-    
-    customSheets[index] = {
-      ...customSheets[index],
-      title,
-      content,
-      updatedAt: Date.now()
-    };
-    
-    await LocalStorage.setItem('custom-cheatsheets', JSON.stringify(customSheets));
-    return customSheets[index];
+  static async updateCustomCheatsheet(id: string, title: string, content: string, tags?: string[], description?: string): Promise<CustomCheatsheet | null> {
+    try {
+      if (!title.trim() || !content.trim()) {
+        throw new Error('Title and content are required');
+      }
+
+      const customSheets = await this.getCustomCheatsheets();
+      const index = customSheets.findIndex(sheet => sheet.id === id);
+      
+      if (index === -1) return null;
+      
+      customSheets[index] = {
+        ...customSheets[index],
+        title: title.trim(),
+        content: content.trim(),
+        updatedAt: Date.now(),
+        tags: tags?.filter(tag => tag.trim()),
+        description: description?.trim()
+      };
+      
+      await LocalStorage.setItem('custom-cheatsheets', JSON.stringify(customSheets));
+      
+      showToast({
+        style: Toast.Style.Success,
+        title: "Updated",
+        message: `"${title}" has been modified`
+      });
+      
+      return customSheets[index];
+    } catch (error) {
+      console.error('Failed to update custom cheatsheet:', error);
+      throw error;
+    }
   }
 
   static async deleteCustomCheatsheet(id: string): Promise<boolean> {
-    const customSheets = await this.getCustomCheatsheets();
-    const filteredSheets = customSheets.filter(sheet => sheet.id !== id);
-    
-    if (filteredSheets.length === customSheets.length) return false;
-    
-    await LocalStorage.setItem('custom-cheatsheets', JSON.stringify(filteredSheets));
-    return true;
+    try {
+      const customSheets = await this.getCustomCheatsheets();
+      const filteredSheets = customSheets.filter(sheet => sheet.id !== id);
+      
+      if (filteredSheets.length === customSheets.length) return false;
+      
+      await LocalStorage.setItem('custom-cheatsheets', JSON.stringify(filteredSheets));
+      return true;
+    } catch (error) {
+      console.error('Failed to delete custom cheatsheet:', error);
+      throw error;
+    }
   }
 
   static async getCustomCheatsheet(id: string): Promise<CustomCheatsheet | null> {
-    const customSheets = await this.getCustomCheatsheets();
-    return customSheets.find(sheet => sheet.id === id) || null;
+    try {
+      const customSheets = await this.getCustomCheatsheets();
+      return customSheets.find(sheet => sheet.id === id) || null;
+    } catch (error) {
+      console.error('Failed to get custom cheatsheet:', error);
+      return null;
+    }
+  }
+
+  // Search functionality
+  static async searchCustomCheatsheets(query: string): Promise<CustomCheatsheet[]> {
+    try {
+      const customSheets = await this.getCustomCheatsheets();
+      const lowerQuery = query.toLowerCase();
+      
+      return customSheets.filter(sheet => 
+        sheet.title.toLowerCase().includes(lowerQuery) ||
+        sheet.content.toLowerCase().includes(lowerQuery) ||
+        sheet.tags?.some(tag => tag.toLowerCase().includes(lowerQuery)) ||
+        sheet.description?.toLowerCase().includes(lowerQuery)
+      );
+    } catch (error) {
+      console.error('Failed to search custom cheatsheets:', error);
+      return [];
+    }
+  }
+
+  // Backup and restore functionality
+  static async exportCustomCheatsheets(): Promise<string> {
+    try {
+      const customSheets = await this.getCustomCheatsheets();
+      return JSON.stringify(customSheets, null, 2);
+    } catch (error) {
+      console.error('Failed to export custom cheatsheets:', error);
+      throw error;
+    }
+  }
+
+  static async importCustomCheatsheets(jsonData: string): Promise<number> {
+    try {
+      const data = JSON.parse(jsonData);
+      if (!Array.isArray(data)) {
+        throw new Error('Invalid data format');
+      }
+
+      // Validate each cheatsheet
+      const validSheets = data.filter((sheet: any) => 
+        sheet && 
+        typeof sheet.title === 'string' && 
+        typeof sheet.content === 'string'
+      );
+
+      if (validSheets.length === 0) {
+        throw new Error('No valid cheatsheets found');
+      }
+
+      // Add import timestamp and generate new IDs
+      const importedSheets = validSheets.map((sheet: any) => ({
+        ...sheet,
+        id: `imported-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        createdAt: sheet.createdAt || Date.now(),
+        updatedAt: Date.now()
+      }));
+
+      const existingSheets = await this.getCustomCheatsheets();
+      const allSheets = [...existingSheets, ...importedSheets];
+      
+      await LocalStorage.setItem('custom-cheatsheets', JSON.stringify(allSheets));
+      
+      showToast({
+        style: Toast.Style.Success,
+        title: "Imported",
+        message: `${importedSheets.length} cheatsheets imported`
+      });
+      
+      return importedSheets.length;
+    } catch (error) {
+      console.error('Failed to import custom cheatsheets:', error);
+      throw error;
+    }
   }
 }
 
