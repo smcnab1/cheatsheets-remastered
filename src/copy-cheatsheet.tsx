@@ -16,20 +16,18 @@ export default function CopyCheatsheet({ arguments: args }: CopyCheatsheetProps)
   const [customSheets, setCustomSheets] = useState<CustomCheatsheet[]>([]);
   const [defaultSheets, setDefaultSheets] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [searchResults, setSearchResults] = useState<Array<{ type: 'custom' | 'default'; id: string; title: string; matchType: string }>>([]);
   const { pop } = useNavigation();
 
   useEffect(() => {
     loadData();
   }, []);
 
-  // Pre-fill search if argument provided
+  // If we have a query argument, try to copy immediately
   useEffect(() => {
-    if (args?.query) {
-      setSearchQuery(args.query);
-      performSearch(args.query);
+    if (args?.query && !isLoading) {
+      handleQuickCopy(args.query);
     }
-  }, [args?.query, customSheets, defaultSheets]);
+  }, [args?.query, isLoading, customSheets, defaultSheets]);
 
   async function loadData() {
     try {
@@ -68,45 +66,41 @@ export default function CopyCheatsheet({ arguments: args }: CopyCheatsheetProps)
       .map((file) => file.path.replace('.md', ''));
   }
 
-  function performSearch(query: string) {
-    if (!query.trim()) {
-      setSearchResults([]);
+  async function handleQuickCopy(query: string) {
+    const lowerQuery = query.toLowerCase();
+    
+    // Search in custom cheatsheets first
+    const customMatch = customSheets.find(sheet =>
+      (filterType === 'all' || filterType === 'custom') && (
+        sheet.title.toLowerCase().includes(lowerQuery) ||
+        sheet.content.toLowerCase().includes(lowerQuery) ||
+        sheet.tags?.some(tag => tag.toLowerCase().includes(lowerQuery)) ||
+        sheet.description?.toLowerCase().includes(lowerQuery)
+      )
+    );
+
+    if (customMatch) {
+      await copyCheatsheetContent('custom', customMatch.id, customMatch.title);
       return;
     }
 
-    const results: Array<{ type: 'custom' | 'default'; id: string; title: string; matchType: string }> = [];
-    const lowerQuery = query.toLowerCase();
-
-    // Search in custom cheatsheets
-    customSheets.forEach(sheet => {
-      if (filterType === 'all' || filterType === 'custom') {
-        if (sheet.title.toLowerCase().includes(lowerQuery)) {
-          results.push({ type: 'custom', id: sheet.id, title: sheet.title, matchType: 'title' });
-        } else if (sheet.content.toLowerCase().includes(lowerQuery)) {
-          results.push({ type: 'custom', id: sheet.id, title: sheet.title, matchType: 'content' });
-        } else if (sheet.tags?.some(tag => tag.toLowerCase().includes(lowerQuery))) {
-          results.push({ type: 'custom', id: sheet.id, title: sheet.title, matchType: 'tag' });
-        } else if (sheet.description?.toLowerCase().includes(lowerQuery)) {
-          results.push({ type: 'custom', id: sheet.id, title: sheet.title, matchType: 'description' });
-        }
-      }
-    });
-
     // Search in default cheatsheets
-    if (filterType === 'all' || filterType === 'default') {
-      defaultSheets.forEach(sheet => {
-        if (sheet.toLowerCase().includes(lowerQuery)) {
-          results.push({ type: 'default', id: sheet, title: sheet, matchType: 'title' });
-        }
-      });
+    const defaultMatch = defaultSheets.find(sheet =>
+      (filterType === 'all' || filterType === 'default') &&
+      sheet.toLowerCase().includes(lowerQuery)
+    );
+
+    if (defaultMatch) {
+      await copyCheatsheetContent('default', defaultMatch, defaultMatch);
+      return;
     }
 
-    // Remove duplicates and limit results
-    const uniqueResults = results.filter((result, index, self) => 
-      index === self.findIndex(r => r.id === result.id)
-    ).slice(0, 10);
-
-    setSearchResults(uniqueResults);
+    // No match found
+    showToast({
+      style: Toast.Style.Failure,
+      title: "Not Found",
+      message: `No cheatsheet found matching "${query}"`
+    });
   }
 
   async function copyCheatsheetContent(type: 'custom' | 'default', slug: string, title: string) {
@@ -143,15 +137,45 @@ export default function CopyCheatsheet({ arguments: args }: CopyCheatsheetProps)
     }
   }
 
+  // If we have arguments and are loading, show loading state
+  if (args?.query && isLoading) {
+    return (
+      <Form
+        isLoading={true}
+        actions={
+          <ActionPanel>
+            <Action title="Loading..." icon={Icon.Clock} />
+          </ActionPanel>
+        }
+      >
+        <Form.Description text={`Searching for "${args.query}"...`} />
+      </Form>
+    );
+  }
+
+  // If we have arguments and found a match, show success
+  if (args?.query && !isLoading) {
+    return (
+      <Form
+        actions={
+          <ActionPanel>
+            <Action title="Done" icon={Icon.Checkmark} onAction={pop} />
+          </ActionPanel>
+        }
+      >
+        <Form.Description text={`"${args.query}" copied to clipboard!`} />
+      </Form>
+    );
+  }
+
+  // Default interface for when no arguments are provided
   return (
     <Form
-      isLoading={isLoading}
       actions={
         <ActionPanel>
-          <Action title="Copy Selected" icon={Icon.CopyClipboard} onAction={() => {
-            if (searchResults.length > 0) {
-              const firstResult = searchResults[0];
-              copyCheatsheetContent(firstResult.type, firstResult.id, firstResult.title);
+          <Action title="Copy Cheatsheet" icon={Icon.CopyClipboard} onAction={() => {
+            if (searchQuery) {
+              handleQuickCopy(searchQuery);
             }
           }} />
           <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={loadData} />
@@ -160,25 +184,17 @@ export default function CopyCheatsheet({ arguments: args }: CopyCheatsheetProps)
     >
       <Form.TextField
         id="search"
-        title="Search Cheatsheets"
-        placeholder="Type to search cheatsheets..."
+        title=""
+        placeholder="Search cheatsheets to copy..."
         value={searchQuery}
-        onChange={(value) => {
-          setSearchQuery(value);
-          performSearch(value);
-        }}
+        onChange={setSearchQuery}
       />
 
       <Form.Dropdown
         id="type"
-        title="Filter by Type"
+        title=""
         value={filterType}
-        onChange={(value) => {
-          setFilterType(value as 'all' | 'custom' | 'default');
-          if (searchQuery) {
-            performSearch(searchQuery);
-          }
-        }}
+        onChange={(value) => setFilterType(value as 'all' | 'custom' | 'default')}
       >
         <Form.Dropdown.Item title="All Types" value="all" icon={Icon.List} />
         <Form.Dropdown.Item title="Custom Only" value="custom" icon={Icon.Document} />
@@ -186,27 +202,11 @@ export default function CopyCheatsheet({ arguments: args }: CopyCheatsheetProps)
       </Form.Dropdown>
 
       {searchQuery && (
-        <Form.Description 
-          text={`${searchResults.length} cheatsheet${searchResults.length !== 1 ? 's' : ''} found for "${searchQuery}"`} 
-        />
-      )}
-
-      {searchResults.length > 0 && (
-        <Form.Description 
-          text="Press Cmd+Enter to copy the first result, or use the action panel to copy specific results."
-        />
-      )}
-
-      {searchQuery && searchResults.length === 0 && !isLoading && (
-        <Form.Description 
-          text={`No cheatsheets found matching "${searchQuery}". Try a different search term.`}
-        />
+        <Form.Description text={`Press Cmd+Enter to copy cheatsheet matching "${searchQuery}"`} />
       )}
 
       {!searchQuery && (
-        <Form.Description 
-          text="Start typing to search for cheatsheets. Results will appear below."
-        />
+        <Form.Description text="Enter a search term to find and copy cheatsheets" />
       )}
     </Form>
   );
