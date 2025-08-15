@@ -1,5 +1,5 @@
 import React from 'react';
-import { List, ActionPanel, Action, Icon, showToast, Toast, useNavigation } from '@raycast/api';
+import { List, ActionPanel, Action, Icon, showToast, Toast, useNavigation, Clipboard } from '@raycast/api';
 import { useState, useEffect } from 'react';
 import Service, { CustomCheatsheet } from './service';
 
@@ -72,14 +72,17 @@ export default function CopyCheatsheet({ arguments: args }: CopyCheatsheetProps)
       
       if (type === 'custom') {
         const customSheet = customSheets.find(s => s.id === slug);
-        content = customSheet?.content || '';
+        if (!customSheet) {
+          throw new Error('Custom cheatsheet not found');
+        }
+        content = customSheet.content || '';
       } else {
         content = await Service.getSheet(slug);
       }
 
-      if (content) {
-        // Copy to clipboard
-        await navigator.clipboard.writeText(content);
+      if (content && content.trim()) {
+        // Use Raycast's Clipboard API instead of navigator.clipboard
+        await Clipboard.copy(content);
         
         showToast({
           style: Toast.Style.Success,
@@ -89,13 +92,14 @@ export default function CopyCheatsheet({ arguments: args }: CopyCheatsheetProps)
         
         pop();
       } else {
-        throw new Error('No content found');
+        throw new Error('No content found or content is empty');
       }
     } catch (error) {
+      console.error('Copy error:', error);
       showToast({
         style: Toast.Style.Failure,
         title: "Copy Failed",
-        message: `Failed to copy ${title}`
+        message: `Failed to copy ${title}: ${error instanceof Error ? error.message : 'Unknown error'}`
       });
     }
   }
