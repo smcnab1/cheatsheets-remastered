@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { LocalStorage } from '@raycast/api';
 
 const BRANCH = 'master';
 const OWNER = 'rstacruz';
@@ -25,6 +26,14 @@ interface File {
   sha: string;
   size: number;
   url: string;
+}
+
+interface CustomCheatsheet {
+  id: string;
+  title: string;
+  content: string;
+  createdAt: number;
+  updatedAt: number;
 }
 
 // Mock data for development
@@ -131,7 +140,65 @@ class Service {
   static urlFor(slug: string) {
     return `https://devhints.io/${slug}`;
   }
+
+  // Custom cheatsheet methods
+  static async getCustomCheatsheets(): Promise<CustomCheatsheet[]> {
+    try {
+      const customSheetsJson = await LocalStorage.getItem<string>('custom-cheatsheets');
+      return customSheetsJson ? JSON.parse(customSheetsJson) : [];
+    } catch (error) {
+      console.warn('Failed to get custom cheatsheets:', error);
+      return [];
+    }
+  }
+
+  static async createCustomCheatsheet(title: string, content: string): Promise<CustomCheatsheet> {
+    const customSheets = await this.getCustomCheatsheets();
+    const newSheet: CustomCheatsheet = {
+      id: `custom-${Date.now()}`,
+      title,
+      content,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    
+    customSheets.push(newSheet);
+    await LocalStorage.setItem('custom-cheatsheets', JSON.stringify(customSheets));
+    return newSheet;
+  }
+
+  static async updateCustomCheatsheet(id: string, title: string, content: string): Promise<CustomCheatsheet | null> {
+    const customSheets = await this.getCustomCheatsheets();
+    const index = customSheets.findIndex(sheet => sheet.id === id);
+    
+    if (index === -1) return null;
+    
+    customSheets[index] = {
+      ...customSheets[index],
+      title,
+      content,
+      updatedAt: Date.now()
+    };
+    
+    await LocalStorage.setItem('custom-cheatsheets', JSON.stringify(customSheets));
+    return customSheets[index];
+  }
+
+  static async deleteCustomCheatsheet(id: string): Promise<boolean> {
+    const customSheets = await this.getCustomCheatsheets();
+    const filteredSheets = customSheets.filter(sheet => sheet.id !== id);
+    
+    if (filteredSheets.length === customSheets.length) return false;
+    
+    await LocalStorage.setItem('custom-cheatsheets', JSON.stringify(filteredSheets));
+    return true;
+  }
+
+  static async getCustomCheatsheet(id: string): Promise<CustomCheatsheet | null> {
+    const customSheets = await this.getCustomCheatsheets();
+    return customSheets.find(sheet => sheet.id === id) || null;
+  }
 }
 
 export default Service;
-export type { File };
+export type { File, CustomCheatsheet };

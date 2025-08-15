@@ -21,7 +21,7 @@
     }
   ],
   "dependencies": {
-    "@raycast/api": "^1.102.4",
+    "@raycast/api": "^1.28.0",
     "axios": "^1.6.0"
   },
   "devDependencies": {
