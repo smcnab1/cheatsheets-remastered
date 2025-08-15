@@ -14,8 +14,15 @@ interface Preferences {
 interface OfflineCheatsheet {
   slug: string;
   content: string;
-  lastUpdated: number;
   size: number;
+}
+
+interface FavoriteCheatsheet {
+  id: string;
+  type: 'custom' | 'devhints';
+  slug: string;
+  title: string;
+  favoritedAt: number;
 }
 
 // Configure axios with better defaults and retry logic
@@ -250,7 +257,6 @@ class Service {
       const offlineSheet: OfflineCheatsheet = {
         slug,
         content,
-        lastUpdated: Date.now(),
         size: content.length
       };
       
@@ -606,6 +612,82 @@ class Service {
       throw error;
     }
   }
+
+  // Favorite management
+  static async getFavorites(): Promise<FavoriteCheatsheet[]> {
+    try {
+      const favoritesJson = await LocalStorage.getItem<string>('favorite-cheatsheets');
+      return favoritesJson ? JSON.parse(favoritesJson) : [];
+    } catch (error) {
+      console.warn('Failed to load favorites:', error);
+      return [];
+    }
+  }
+
+  static async addToFavorites(type: 'custom' | 'devhints', slug: string, title: string): Promise<void> {
+    try {
+      const favorites = await this.getFavorites();
+      const existingIndex = favorites.findIndex(fav => fav.slug === slug && fav.type === type);
+      
+      if (existingIndex >= 0) {
+        // Update existing favorite
+        favorites[existingIndex].favoritedAt = Date.now();
+      } else {
+        // Add new favorite
+        const newFavorite: FavoriteCheatsheet = {
+          id: `${type}-${slug}-${Date.now()}`,
+          type,
+          slug,
+          title,
+          favoritedAt: Date.now()
+        };
+        favorites.push(newFavorite);
+      }
+      
+      await LocalStorage.setItem('favorite-cheatsheets', JSON.stringify(favorites));
+    } catch (error) {
+      console.error('Failed to add to favorites:', error);
+      throw error;
+    }
+  }
+
+  static async removeFromFavorites(type: 'custom' | 'devhints', slug: string): Promise<void> {
+    try {
+      const favorites = await this.getFavorites();
+      const filtered = favorites.filter(fav => !(fav.slug === slug && fav.type === type));
+      await LocalStorage.setItem('favorite-cheatsheets', JSON.stringify(filtered));
+    } catch (error) {
+      console.error('Failed to remove from favorites:', error);
+      throw error;
+    }
+  }
+
+  static async isFavorited(type: 'custom' | 'devhints', slug: string): Promise<boolean> {
+    try {
+      const favorites = await this.getFavorites();
+      return favorites.some(fav => fav.slug === slug && fav.type === type);
+    } catch (error) {
+      console.error('Failed to check favorite status:', error);
+      return false;
+    }
+  }
+
+  static async toggleFavorite(type: 'custom' | 'devhints', slug: string, title: string): Promise<boolean> {
+    try {
+      const isFavorited = await this.isFavorited(type, slug);
+      
+      if (isFavorited) {
+        await this.removeFromFavorites(type, slug);
+        return false;
+      } else {
+        await this.addToFavorites(type, slug, title);
+        return true;
+      }
+    } catch (error) {
+      console.error('Failed to toggle favorite:', error);
+      throw error;
+    }
+  }
 }
 
 // Helper function to get sheets from files
@@ -622,4 +704,4 @@ function getSheets(files: File[]): string[] {
 }
 
 export default Service;
-export type { File, CustomCheatsheet, Preferences, OfflineCheatsheet };
+export type { File, CustomCheatsheet, Preferences, OfflineCheatsheet, FavoriteCheatsheet };

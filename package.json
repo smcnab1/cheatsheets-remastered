@@ -6,7 +6,11 @@
   "icon": "icon.png",
   "author": "smcnab1",
   "contributors": [],
-  "categories": ["Documentation", "Developer Tools", "Productivity"],
+  "categories": [
+    "Documentation",
+    "Developer Tools",
+    "Productivity"
+  ],
   "license": "MIT",
   "platforms": [
     "macOS",
@@ -66,6 +70,7 @@
   ],
   "dependencies": {
     "@raycast/api": "^1.28.0",
+    "@raycast/utils": "^2.2.0",
     "axios": "^1.6.0"
   },
   "devDependencies": {

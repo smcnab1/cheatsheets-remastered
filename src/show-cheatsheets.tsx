@@ -1,8 +1,9 @@
 import React from 'react';
 import { Action, ActionPanel, Detail, Icon, List, Form, useNavigation, showToast, Toast, confirmAlert, Alert, LocalStorage } from '@raycast/api';
 import { useEffect, useState } from 'react';
+import { useFrecencySorting } from '@raycast/utils';
 
-import Service, { CustomCheatsheet, Preferences, OfflineCheatsheet } from './service';
+import Service, { CustomCheatsheet, Preferences, OfflineCheatsheet, FavoriteCheatsheet } from './service';
 import {
   stripFrontmatter,
   stripTemplateTags,
@@ -58,10 +59,23 @@ function useDraftPersistence(key: string, defaultValue: string) {
   return { value, updateValue, clearDraft };
 }
 
+type FilterType = 'all' | 'custom' | 'devhints';
+
+interface UnifiedCheatsheet {
+  id: string;
+  type: 'custom' | 'devhints';
+  slug: string;
+  title: string;
+  isOffline: boolean;
+  isFavorited: boolean;
+}
+
 function Command() {
   const [sheets, setSheets] = useState<string[]>([]);
   const [customSheets, setCustomSheets] = useState<CustomCheatsheet[]>([]);
   const [offlineSheets, setOfflineSheets] = useState<OfflineCheatsheet[]>([]);
+  const [favorites, setFavorites] = useState<FavoriteCheatsheet[]>([]);
+  const [filter, setFilter] = useState<FilterType>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,10 +89,11 @@ function Command() {
       setError(null);
       
       // Always try to fetch fresh data from DevHints by default
-      const [files, custom, offline] = await Promise.all([
+      const [files, custom, offline, favs] = await Promise.all([
         Service.listFiles(),
         Service.getCustomCheatsheets(),
-        Service.getOfflineCheatsheets()
+        Service.getOfflineCheatsheets(),
+        Service.getFavorites()
       ]);
       
       if (files.length > 0) {
@@ -92,6 +107,7 @@ function Command() {
       
       setCustomSheets(custom);
       setOfflineSheets(offline);
+      setFavorites(favs);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load cheatsheets');
       showToast({
@@ -103,6 +119,63 @@ function Command() {
       setIsLoading(false);
     }
   }
+
+  // Create unified cheatsheet list
+  const createUnifiedList = (): UnifiedCheatsheet[] => {
+    const unified: UnifiedCheatsheet[] = [];
+    
+    // Add custom cheatsheets
+    customSheets.forEach(sheet => {
+      unified.push({
+        id: sheet.id,
+        type: 'custom',
+        slug: sheet.id,
+        title: sheet.title,
+        isOffline: true, // Custom sheets are always "offline"
+        isFavorited: favorites.some(fav => fav.slug === sheet.id && fav.type === 'custom')
+      });
+    });
+    
+    // Add DevHints cheatsheets
+    sheets.forEach(sheet => {
+      const isOffline = offlineSheets.some(offline => offline.slug === sheet);
+      unified.push({
+        id: sheet,
+        type: 'devhints',
+        slug: sheet,
+        title: sheet,
+        isOffline,
+        isFavorited: favorites.some(fav => fav.slug === sheet && fav.type === 'devhints')
+      });
+    });
+    
+    return unified;
+  };
+
+  const unifiedList = createUnifiedList();
+  
+  // Apply frequency sorting
+  const { data: sortedData, visitItem } = useFrecencySorting(unifiedList, {
+    namespace: 'cheatsheets',
+    key: (item) => `${item.type}-${item.slug}`,
+    sortUnvisited: (a, b) => {
+      // Sort unvisited items: favorites first, then by type (custom first), then alphabetically
+      if (a.isFavorited && !b.isFavorited) return -1;
+      if (!a.isFavorited && b.isFavorited) return 1;
+      if (a.type === 'custom' && b.type === 'devhints') return -1;
+      if (a.type === 'devhints' && b.type === 'custom') return 1;
+      return a.title.localeCompare(b.title);
+    }
+  });
+
+  // Filter the sorted data
+  const filteredData = sortedData.filter(item => {
+    switch (filter) {
+      case 'custom': return item.type === 'custom';
+      case 'devhints': return item.type === 'devhints';
+      default: return true;
+    }
+  });
 
   async function handleDeleteCustomSheet(id: string, title: string) {
     const confirmed = await confirmAlert({
@@ -144,35 +217,51 @@ function Command() {
     });
   }
 
-  async function handleDownloadAll() {
+  async function handleToggleFavorite(item: UnifiedCheatsheet) {
     try {
-      const result = await Service.downloadAllForOffline();
-      // Reload data to show updated offline status
-      await loadData();
+      const newFavorited = await Service.toggleFavorite(item.type, item.slug, item.title);
+      
+      // Update local state
+      const updatedFavorites = await Service.getFavorites();
+      setFavorites(updatedFavorites);
+      
+      // Update the item's favorite status
+      item.isFavorited = newFavorited;
+      
+      showToast({
+        style: Toast.Style.Success,
+        title: newFavorited ? "Added to Favorites" : "Removed from Favorites",
+        message: `"${item.title}" ${newFavorited ? 'is now' : 'is no longer'} favorited`
+      });
     } catch (error) {
-      // Error already shown by service
+      showToast({
+        style: Toast.Style.Failure,
+        title: "Error",
+        message: "Failed to update favorite status"
+      });
     }
   }
 
-  async function handleClearOffline() {
-    const confirmed = await confirmAlert({
-      title: "Clear Offline Storage",
-      message: "This will remove all locally stored DevHints cheatsheets. This action cannot be undone.",
-      primaryAction: {
-        title: "Clear All",
-        style: Alert.ActionStyle.Destructive,
-      },
-    });
-
-    if (confirmed) {
-      try {
-        await Service.clearOfflineStorage();
-        setOfflineSheets([]);
-        // Reload data
-        await loadData();
-      } catch (error) {
-        // Error already shown by service
-      }
+  async function handleDownloadForOffline(slug: string) {
+    try {
+      const content = await Service.getSheet(slug);
+      await Service.saveOfflineCheatsheet(slug, content);
+      showToast({
+        style: Toast.Style.Success,
+        title: "Downloaded",
+        message: `${slug} is now available offline`
+      });
+      // Reload offline data
+      const updated = await Service.getOfflineCheatsheets();
+      setOfflineSheets(updated);
+      // Reload unified list
+      await loadData();
+    } catch (error) {
+      showToast({
+        style: Toast.Style.Failure,
+        title: "Download Failed",
+        message: `Failed to download ${slug}`
+      });
     }
   }
 
@@ -194,172 +283,129 @@ function Command() {
     <List 
       isLoading={isLoading}
       searchBarPlaceholder="Search cheatsheets..."
+      searchBarAccessory={
+        <List.Dropdown
+          tooltip="Filter Cheatsheets"
+          value={filter}
+          onChange={(value) => setFilter(value as FilterType)}
+        >
+          <List.Dropdown.Item title="All Cheatsheets" value="all" icon={Icon.List} />
+          <List.Dropdown.Item title="Custom Only" value="custom" icon={Icon.Document} />
+          <List.Dropdown.Item title="DevHints Only" value="devhints" icon={Icon.Globe} />
+        </List.Dropdown>
+      }
       actions={
         <ActionPanel>
           <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={handleRefresh} />
           <Action title="Create Custom Cheatsheet" icon={Icon.Plus} onAction={() => {}} />
           {Service.getPreferences().enableOfflineStorage && (
             <>
-              <Action title="Download All for Offline" icon={Icon.Download} onAction={handleDownloadAll} />
-              <Action title="Clear Offline Storage" icon={Icon.Trash} onAction={handleClearOffline} />
+              <Action title="Download All for Offline" icon={Icon.Download} onAction={async () => {
+                try {
+                  const result = await Service.downloadAllForOffline();
+                  await loadData();
+                } catch (error) {
+                  // Error already shown by service
+                }
+              }} />
             </>
           )}
         </ActionPanel>
       }
     >
-      <List.Section title="Custom Cheatsheets" subtitle={`${customSheets.length} custom sheets`}>
-        {customSheets.map((sheet) => (
-          <List.Item
-            key={sheet.id}
-            title={sheet.title}
-            subtitle={`Custom • Created: ${new Date(sheet.createdAt).toLocaleDateString()}`}
-            icon={Icon.Document}
-            accessories={[
-              { text: "Custom", icon: Icon.Tag },
-              { date: new Date(sheet.updatedAt) }
-            ]}
-            actions={
-              <ActionPanel>
-                <ActionPanel.Section title="View & Edit">
-                  <Action.Push
-                    title="View Custom Cheatsheet"
-                    icon={Icon.Window}
-                    target={<CustomSheetView sheet={sheet} />}
+      {filteredData.map((item) => (
+        <List.Item
+          key={item.id}
+          title={item.title}
+          subtitle={`${item.type === 'custom' ? 'Custom' : 'DevHints'}${item.isOffline ? ' • Available Offline' : ''}`}
+          icon={item.type === 'custom' ? Icon.Document : getCheatsheetIcon(item.slug)}
+          accessories={[
+            { text: item.type === 'custom' ? 'Custom' : 'DevHints', icon: item.type === 'custom' ? Icon.Tag : Icon.Globe },
+            ...(item.isOffline ? [{ text: "Offline", icon: Icon.Download }] : []),
+            ...(item.isFavorited ? [{ icon: Icon.Star, tooltip: "Favorited" }] : [])
+          ]}
+          actions={
+            <ActionPanel>
+              <ActionPanel.Section title="View">
+                <Action.Push
+                  title="Open Cheatsheet"
+                  icon={Icon.Window}
+                  target={
+                    item.type === 'custom' 
+                      ? <CustomSheetView sheet={customSheets.find(s => s.id === item.id)!} />
+                      : <SheetView slug={item.slug} />
+                  }
+                />
+                {item.type === 'devhints' && (
+                  <Action.OpenInBrowser 
+                    url={Service.urlFor(item.slug)}
+                    title="Open in Browser"
+                    icon={Icon.Link}
                   />
+                )}
+              </ActionPanel.Section>
+              <ActionPanel.Section title="Actions">
+                <Action
+                  title={item.isFavorited ? "Remove from Favorites" : "Add to Favorites"}
+                  icon={item.isFavorited ? Icon.StarDisabled : Icon.Star}
+                  onAction={() => handleToggleFavorite(item)}
+                />
+                <Action.CopyToClipboard
+                  title="Copy Title"
+                  content={item.title}
+                  icon={Icon.CopyClipboard}
+                />
+                {item.type === 'custom' && (
                   <Action.Push
                     title="Edit Custom Cheatsheet"
                     icon={Icon.Pencil}
-                    target={<EditCustomSheetForm sheet={sheet} onUpdated={async () => {
+                    target={<EditCustomSheetForm sheet={customSheets.find(s => s.id === item.id)!} onUpdated={async () => {
                       const updated = await Service.getCustomCheatsheets();
                       setCustomSheets(updated);
                     }} />}
                   />
-                </ActionPanel.Section>
-                <ActionPanel.Section title="Actions">
+                )}
+                {item.type === 'devhints' && Service.getPreferences().enableOfflineStorage && (
+                  <Action
+                    title={item.isOffline ? "Update Offline Copy" : "Download for Offline"}
+                    icon={item.isOffline ? Icon.ArrowClockwise : Icon.Download}
+                    onAction={() => handleDownloadForOffline(item.slug)}
+                  />
+                )}
+              </ActionPanel.Section>
+              {item.type === 'custom' && (
+                <ActionPanel.Section title="Danger Zone">
                   <Action
                     title="Delete Custom Cheatsheet"
                     icon={Icon.Trash}
                     style={Action.Style.Destructive}
-                    onAction={() => handleDeleteCustomSheet(sheet.id, sheet.title)}
+                    onAction={() => handleDeleteCustomSheet(item.id, item.title)}
                   />
                 </ActionPanel.Section>
-              </ActionPanel>
-            }
-          />
-        ))}
-        <List.Item
-          title="Create New Custom Cheatsheet"
-          subtitle="Add your own cheatsheet"
-          icon={Icon.Plus}
-          accessories={[{ text: "New", icon: Icon.Star }]}
-          actions={
-            <ActionPanel>
-              <Action.Push
-                title="Create New"
-                icon={Icon.Plus}
-                target={<CreateCustomSheetForm onCreated={async () => {
-                  const updated = await Service.getCustomCheatsheets();
-                  setCustomSheets(updated);
-                }} />}
-              />
+              )}
             </ActionPanel>
           }
         />
-      </List.Section>
-
-      <List.Section title="DevHints Cheatsheets" subtitle={`${sheets.length} sheets from devhints.io`}>
-        {sheets.map((sheet) => {
-          const isOffline = offlineSheets.some(offline => offline.slug === sheet);
-          const offlineSheet = offlineSheets.find(offline => offline.slug === sheet);
-          
-          return (
-            <List.Item
-              key={sheet}
-              title={sheet}
-              subtitle={`From DevHints${isOffline ? ' • Available Offline' : ''}`}
-              icon={getCheatsheetIcon(sheet)}
-              accessories={[
-                { text: "DevHints", icon: Icon.Globe },
-                ...(isOffline ? [
-                  { text: "Offline", icon: Icon.Download },
-                  { date: new Date(offlineSheet!.lastUpdated) }
-                ] : [
-                  { icon: Icon.Link }
-                ])
-              ]}
-              actions={
-                <ActionPanel>
-                  <ActionPanel.Section title="View">
-                    <Action.Push
-                      title="Open Cheatsheet"
-                      icon={Icon.Window}
-                      target={<SheetView slug={sheet} />}
-                    />
-                    <Action.OpenInBrowser 
-                      url={Service.urlFor(sheet)}
-                      title="Open in Browser"
-                      icon={Icon.Link}
-                    />
-                  </ActionPanel.Section>
-                  <ActionPanel.Section title="Actions">
-                    <Action.CopyToClipboard
-                      title="Copy Title"
-                      content={sheet}
-                      icon={Icon.CopyClipboard}
-                    />
-                    {Service.getPreferences().enableOfflineStorage && (
-                      <Action
-                        title={isOffline ? "Update Offline Copy" : "Download for Offline"}
-                        icon={isOffline ? Icon.ArrowClockwise : Icon.Download}
-                        onAction={async () => {
-                          try {
-                            const content = await Service.getSheet(sheet);
-                            await Service.saveOfflineCheatsheet(sheet, content);
-                            showToast({
-                              style: Toast.Style.Success,
-                              title: "Downloaded",
-                              message: `${sheet} is now available offline`
-                            });
-                            // Reload offline data
-                            const updated = await Service.getOfflineCheatsheets();
-                            setOfflineSheets(updated);
-                          } catch (error) {
-                            showToast({
-                              style: Toast.Style.Failure,
-                              title: "Download Failed",
-                              message: `Failed to download ${sheet}`
-                            });
-                          }
-                        }}
-                      />
-                    )}
-                  </ActionPanel.Section>
-                </ActionPanel>
-              }
+      ))}
+      
+      <List.Item
+        title="Create New Custom Cheatsheet"
+        subtitle="Add your own cheatsheet"
+        icon={Icon.Plus}
+        accessories={[{ text: "New", icon: Icon.Star }]}
+        actions={
+          <ActionPanel>
+            <Action.Push
+              title="Create New"
+              icon={Icon.Plus}
+              target={<CreateCustomSheetForm onCreated={async () => {
+                const updated = await Service.getCustomCheatsheets();
+                setCustomSheets(updated);
+              }} />}
             />
-          );
-        })}
-      </List.Section>
-
-      {Service.getPreferences().enableOfflineStorage && offlineSheets.length > 0 && (
-        <List.Section title="Offline Storage" subtitle={`${offlineSheets.length} sheets stored locally`}>
-          <List.Item
-            title="Offline Storage Info"
-            subtitle={`${offlineSheets.length} cheatsheets available offline`}
-            icon={Icon.Download}
-            accessories={[
-              { text: "Offline", icon: Icon.Download },
-              { text: `${Math.round(offlineSheets.reduce((sum, sheet) => sum + sheet.size, 0) / 1024)} KB` }
-            ]}
-            actions={
-              <ActionPanel>
-                <Action title="Download All for Offline" icon={Icon.Download} onAction={handleDownloadAll} />
-                <Action title="Clear Offline Storage" icon={Icon.Trash} onAction={handleClearOffline} />
-              </ActionPanel>
-            }
-          />
-        </List.Section>
-      )}
+          </ActionPanel>
+        }
+      />
     </List>
   );
 }
@@ -381,146 +427,161 @@ interface SheetProps {
   slug: string;
 }
 
-function SheetView(props: SheetProps) {
-  const [sheet, setSheet] = useState('');
+function SheetView({ slug }: SheetProps) {
+  const [content, setContent] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchSheet() {
-      try {
-        setIsLoading(true);
-        setError(null);
-        
-        const sheetMarkdown = await Service.getSheet(props.slug);
-        const formattedSheet = formatTables(
-          stripTemplateTags(stripFrontmatter(sheetMarkdown)),
-        );
+    loadSheet();
+  }, [slug]);
 
-        setSheet(formattedSheet);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load cheatsheet');
-        showToast({
-          style: Toast.Style.Failure,
-          title: "Error",
-          message: `Failed to load ${props.slug}`
-        });
-      } finally {
-        setIsLoading(false);
-      }
+  async function loadSheet() {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const sheetContent = await Service.getSheet(slug);
+      setContent(sheetContent);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load cheatsheet');
+    } finally {
+      setIsLoading(false);
     }
+  }
 
-    fetchSheet();
-  }, [props.slug]);
+  if (isLoading) {
+    return <Detail markdown="Loading..." />;
+  }
 
   if (error) {
     return (
       <Detail
-        markdown={`# Error Loading ${props.slug}\n\n${error}\n\nPlease try again or check your internet connection.`}
+        markdown={`# Error Loading Cheatsheet\n\n${error}\n\nPlease try refreshing or check your internet connection.`}
         actions={
           <ActionPanel>
-            <Action title="Retry" icon={Icon.ArrowClockwise} onAction={() => window.location.reload()} />
-            <Action.OpenInBrowser url={Service.urlFor(props.slug)} />
+            <Action title="Retry" icon={Icon.ArrowClockwise} onAction={loadSheet} />
           </ActionPanel>
         }
       />
     );
   }
 
+  const processedContent = formatTables(stripTemplateTags(stripFrontmatter(content)));
+
   return (
-    <Detail 
-      isLoading={isLoading} 
-      markdown={sheet}
+    <Detail
+      markdown={processedContent}
       actions={
         <ActionPanel>
-          <Action.OpenInBrowser url={Service.urlFor(props.slug)} />
-          <Action.CopyToClipboard title="Copy Content" content={sheet} />
+          <ActionPanel.Section title="Actions">
+            <Action.CopyToClipboard
+              title="Copy Content"
+              content={processedContent}
+              icon={Icon.CopyClipboard}
+            />
+            <Action.CopyToClipboard
+              title="Copy Title"
+              content={slug}
+              icon={Icon.CopyClipboard}
+            />
+            <Action.OpenInBrowser
+              url={Service.urlFor(slug)}
+              title="Open in Browser"
+              icon={Icon.Link}
+            />
+          </ActionPanel.Section>
         </ActionPanel>
       }
     />
   );
 }
 
-interface CustomSheetViewProps {
+interface CustomSheetProps {
   sheet: CustomCheatsheet;
 }
 
-function CustomSheetView({ sheet }: CustomSheetViewProps) {
+function CustomSheetView({ sheet }: CustomSheetProps) {
   return (
     <Detail
-      markdown={sheet.content}
-      metadata={
-        <Detail.Metadata>
-          <Detail.Metadata.Label title="Title" text={sheet.title} />
-          <Detail.Metadata.Label title="Type" text="Custom" />
-          <Detail.Metadata.Label title="Created" text={new Date(sheet.createdAt).toLocaleString()} />
-          <Detail.Metadata.Label title="Updated" text={new Date(sheet.updatedAt).toLocaleString()} />
-        </Detail.Metadata>
-      }
+      markdown={`# ${sheet.title}\n\n${sheet.content}`}
       actions={
         <ActionPanel>
-          <Action.CopyToClipboard title="Copy Content" content={sheet.content} />
-          <Action.CopyToClipboard title="Copy Title" content={sheet.title} />
+          <ActionPanel.Section title="Actions">
+            <Action.CopyToClipboard
+              title="Copy Content"
+              content={sheet.content}
+              icon={Icon.CopyClipboard}
+            />
+            <Action.CopyToClipboard
+              title="Copy Title"
+              content={sheet.title}
+              icon={Icon.CopyClipboard}
+            />
+          </ActionPanel.Section>
         </ActionPanel>
       }
     />
   );
 }
 
-interface EditCustomSheetFormProps {
+interface EditCustomSheetProps {
   sheet: CustomCheatsheet;
   onUpdated: () => void;
 }
 
-function EditCustomSheetForm({ sheet, onUpdated }: EditCustomSheetFormProps) {
+function EditCustomSheetForm({ sheet, onUpdated }: EditCustomSheetProps) {
   const { pop } = useNavigation();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { value: title, updateValue: updateTitle, clearDraft: clearTitleDraft } = useDraftPersistence(`edit-draft-title-${sheet.id}`, sheet.title);
-  const { value: content, updateValue: updateContent, clearDraft: clearContentDraft } = useDraftPersistence(`edit-draft-content-${sheet.id}`, sheet.content);
+  
+  const { value: title, updateValue: updateTitle, clearDraft: clearTitleDraft } = useDraftPersistence(
+    `edit-custom-sheet-title-${sheet.id}`,
+    sheet.title
+  );
+  
+  const { value: content, updateValue: updateContent, clearDraft: clearContentDraft } = useDraftPersistence(
+    `edit-custom-sheet-content-${sheet.id}`,
+    sheet.content
+  );
+  
+  const { value: tags, updateValue: updateTags, clearDraft: clearTagsDraft } = useDraftPersistence(
+    `edit-custom-sheet-tags-${sheet.id}`,
+    (sheet.tags || []).join(', ')
+  );
+  
+  const { value: description, updateValue: updateDescription, clearDraft: clearDescriptionDraft } = useDraftPersistence(
+    `edit-custom-sheet-description-${sheet.id}`,
+    sheet.description || ''
+  );
 
-  // Load draft data if available
-  useEffect(() => {
-    if (title !== sheet.title) updateTitle(title);
-    if (content !== sheet.content) updateContent(content);
-  }, [title, content, sheet.title, sheet.content]);
-
-  // Save draft as user types
-  const handleTitleChange = (value: string) => {
-    updateTitle(value);
-  };
-
-  const handleContentChange = (value: string) => {
-    updateContent(value);
-  };
-
-  async function handleSubmit() {
-    if (!title.trim() || !content.trim()) {
-      showToast({
-        style: Toast.Style.Failure,
-        title: "Validation Error",
-        message: "Title and content are required"
-      });
-      return;
-    }
-    
+  const handleSubmit = async (values: any) => {
     try {
       setIsSubmitting(true);
-      await Service.updateCustomCheatsheet(sheet.id, title.trim(), content.trim());
       
-      // Clear drafts after successful save
+      const tagsArray = values.tags ? values.tags.split(',').map((tag: string) => tag.trim()).filter(Boolean) : [];
+      
+      await Service.updateCustomCheatsheet(
+        sheet.id,
+        values.title,
+        values.content,
+        tagsArray,
+        values.description
+      );
+      
+      // Clear drafts after successful submission
       clearTitleDraft();
       clearContentDraft();
+      clearTagsDraft();
+      clearDescriptionDraft();
       
       onUpdated();
+      pop();
       
       showToast({
         style: Toast.Style.Success,
         title: "Updated",
-        message: `"${title}" has been updated`
+        message: `"${values.title}" has been modified`
       });
-      
-      pop();
-    } catch (err) {
+    } catch (error) {
       showToast({
         style: Toast.Style.Failure,
         title: "Error",
@@ -529,15 +590,15 @@ function EditCustomSheetForm({ sheet, onUpdated }: EditCustomSheetFormProps) {
     } finally {
       setIsSubmitting(false);
     }
-  }
+  };
 
   return (
     <Form
       isLoading={isSubmitting}
       actions={
         <ActionPanel>
-          <Action.SubmitForm 
-            title="Save Changes" 
+          <Action.SubmitForm
+            title="Update Custom Cheatsheet"
             onSubmit={handleSubmit}
             icon={Icon.Document}
           />
@@ -549,74 +610,94 @@ function EditCustomSheetForm({ sheet, onUpdated }: EditCustomSheetFormProps) {
         title="Title"
         placeholder="Enter cheatsheet title"
         value={title}
-        onChange={handleTitleChange}
-        error={title.trim() === '' ? "Title is required" : undefined}
+        onChange={updateTitle}
+        error={!title.trim() ? "Title is required" : undefined}
       />
+      
       <Form.TextArea
         id="content"
         title="Content"
         placeholder="Enter cheatsheet content (Markdown supported)"
         value={content}
-        onChange={handleContentChange}
-        error={content.trim() === '' ? "Content is required" : undefined}
+        onChange={updateContent}
+        error={!content.trim() ? "Content is required" : undefined}
+      />
+      
+      <Form.TextField
+        id="tags"
+        title="Tags"
+        placeholder="Enter tags separated by commas"
+        value={tags}
+        onChange={updateTags}
+      />
+      
+      <Form.TextField
+        id="description"
+        title="Description"
+        placeholder="Enter optional description"
+        value={description}
+        onChange={updateDescription}
       />
     </Form>
   );
 }
 
-interface CreateCustomSheetFormProps {
+interface CreateCustomSheetProps {
   onCreated: () => void;
 }
 
-function CreateCustomSheetForm({ onCreated }: CreateCustomSheetFormProps) {
+function CreateCustomSheetForm({ onCreated }: CreateCustomSheetProps) {
   const { pop } = useNavigation();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { value: title, updateValue: updateTitle, clearDraft: clearTitleDraft } = useDraftPersistence('create-draft-title', '');
-  const { value: content, updateValue: updateContent, clearDraft: clearContentDraft } = useDraftPersistence('create-draft-content', '');
+  
+  const { value: title, updateValue: updateTitle, clearDraft: clearTitleDraft } = useDraftPersistence(
+    'create-custom-sheet-title',
+    ''
+  );
+  
+  const { value: content, updateValue: updateContent, clearDraft: clearContentDraft } = useDraftPersistence(
+    'create-custom-sheet-content',
+    ''
+  );
+  
+  const { value: tags, updateValue: updateTags, clearDraft: clearTagsDraft } = useDraftPersistence(
+    'create-custom-sheet-tags',
+    ''
+  );
+  
+  const { value: description, updateValue: updateDescription, clearDraft: clearDescriptionDraft } = useDraftPersistence(
+    'create-custom-sheet-description',
+    ''
+  );
 
-  // Load draft data if available
-  useEffect(() => {
-    if (title) updateTitle(title);
-    if (content) updateContent(content);
-  }, [title, content]);
-
-  // Save draft as user types
-  const handleTitleChange = (value: string) => {
-    updateTitle(value);
-  };
-
-  const handleContentChange = (value: string) => {
-    updateContent(value);
-  };
-
-  async function handleSubmit() {
-    if (!title.trim() || !content.trim()) {
-      showToast({
-        style: Toast.Style.Failure,
-        title: "Validation Error",
-        message: "Title and content are required"
-      });
-      return;
-    }
-    
+  const handleSubmit = async (values: any) => {
     try {
       setIsSubmitting(true);
-      await Service.createCustomCheatsheet(title.trim(), content.trim());
       
-      // Clear drafts after successful creation
+      const tagsArray = values.tags ? values.tags.split(',').map((tag: string) => tag.trim()).filter(Boolean) : [];
+      
+      await Service.createCustomCheatsheet(
+        values.title,
+        values.content,
+        tagsArray,
+        values.description
+      );
+      
+      // Clear drafts after successful submission
       clearTitleDraft();
       clearContentDraft();
+      clearTagsDraft();
+      clearDescriptionDraft();
       
       onCreated();
+      pop();
       
       showToast({
         style: Toast.Style.Success,
         title: "Created",
-        message: `"${title}" has been created`
+        message: `"${values.title}" has been added`
       });
-      
-      pop();
-    } catch (err) {
+    } catch (error) {
       showToast({
         style: Toast.Style.Failure,
         title: "Error",
@@ -625,17 +706,17 @@ function CreateCustomSheetForm({ onCreated }: CreateCustomSheetFormProps) {
     } finally {
       setIsSubmitting(false);
     }
-  }
+  };
 
   return (
     <Form
       isLoading={isSubmitting}
       actions={
         <ActionPanel>
-          <Action.SubmitForm 
-            title="Create Cheatsheet" 
+          <Action.SubmitForm
+            title="Create Custom Cheatsheet"
             onSubmit={handleSubmit}
-            icon={Icon.Plus}
+            icon={Icon.Document}
           />
         </ActionPanel>
       }
@@ -645,16 +726,33 @@ function CreateCustomSheetForm({ onCreated }: CreateCustomSheetFormProps) {
         title="Title"
         placeholder="Enter cheatsheet title"
         value={title}
-        onChange={handleTitleChange}
-        error={title.trim() === '' ? "Title is required" : undefined}
+        onChange={updateTitle}
+        error={!title.trim() ? "Title is required" : undefined}
       />
+      
       <Form.TextArea
         id="content"
         title="Content"
         placeholder="Enter cheatsheet content (Markdown supported)"
         value={content}
-        onChange={handleContentChange}
-        error={content.trim() === '' ? "Content is required" : undefined}
+        onChange={updateContent}
+        error={!content.trim() ? "Content is required" : undefined}
+      />
+      
+      <Form.TextField
+        id="tags"
+        title="Tags"
+        placeholder="Enter tags separated by commas"
+        value={tags}
+        onChange={updateTags}
+      />
+      
+      <Form.TextField
+        id="description"
+        title="Description"
+        placeholder="Enter optional description"
+        value={description}
+        onChange={updateDescription}
       />
     </Form>
   );
