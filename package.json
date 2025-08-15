@@ -30,7 +30,7 @@
       "type": "checkbox",
       "required": false,
       "title": "Enable Offline Storage",
-      "description": "Store DevHints cheatsheets locally for offline access",
+      "description": "Store online cheatsheets locally for offline access",
       "default": false
     },
     {

@@ -59,11 +59,11 @@ function useDraftPersistence(key: string, defaultValue: string) {
   return { value, updateValue, clearDraft };
 }
 
-type FilterType = 'all' | 'custom' | 'devhints';
+type FilterType = 'all' | 'custom' | 'default';
 
 interface UnifiedCheatsheet {
   id: string;
-  type: 'custom' | 'devhints';
+  type: 'custom' | 'default';
   slug: string;
   title: string;
   isOffline: boolean;
@@ -88,7 +88,7 @@ function Command() {
       setIsLoading(true);
       setError(null);
       
-      // Always try to fetch fresh data from DevHints by default
+      // Always try to fetch fresh data from online sources by default
       const [files, custom, offline, favs] = await Promise.all([
         Service.listFiles(),
         Service.getCustomCheatsheets(),
@@ -136,16 +136,16 @@ function Command() {
       });
     });
     
-    // Add DevHints cheatsheets
+    // Add online cheatsheets
     sheets.forEach(sheet => {
       const isOffline = offlineSheets.some(offline => offline.slug === sheet);
       unified.push({
         id: sheet,
-        type: 'devhints',
+        type: 'default',
         slug: sheet,
         title: sheet,
         isOffline,
-        isFavorited: favorites.some(fav => fav.slug === sheet && fav.type === 'devhints')
+        isFavorited: favorites.some(fav => fav.slug === sheet && fav.type === 'default')
       });
     });
     
@@ -162,8 +162,8 @@ function Command() {
       // Sort unvisited items: favorites first, then by type (custom first), then alphabetically
       if (a.isFavorited && !b.isFavorited) return -1;
       if (!a.isFavorited && b.isFavorited) return 1;
-      if (a.type === 'custom' && b.type === 'devhints') return -1;
-      if (a.type === 'devhints' && b.type === 'custom') return 1;
+      if (a.type === 'custom' && b.type === 'default') return -1;
+      if (a.type === 'default' && b.type === 'custom') return 1;
       return a.title.localeCompare(b.title);
     }
   });
@@ -172,7 +172,7 @@ function Command() {
   const filteredData = sortedData.filter(item => {
     switch (filter) {
       case 'custom': return item.type === 'custom';
-      case 'devhints': return item.type === 'devhints';
+      case 'default': return item.type === 'default';
       default: return true;
     }
   });
@@ -290,8 +290,8 @@ function Command() {
           onChange={(value) => setFilter(value as FilterType)}
         >
           <List.Dropdown.Item title="All Cheatsheets" value="all" icon={Icon.List} />
-          <List.Dropdown.Item title="Custom Only" value="custom" icon={Icon.Document} />
-          <List.Dropdown.Item title="DevHints Only" value="devhints" icon={Icon.Globe} />
+          <List.Dropdown.Item title="Custom Cheatsheets" value="custom" icon={Icon.Document} />
+          <List.Dropdown.Item title="Default Cheatsheets" value="default" icon={Icon.Globe} />
         </List.Dropdown>
       }
       actions={
@@ -317,11 +317,11 @@ function Command() {
         <List.Item
           key={item.id}
           title={item.title}
-          subtitle={`${item.type === 'custom' ? 'Custom' : 'DevHints'}${item.isOffline ? ' • Available Offline' : ''}`}
+          subtitle={`${item.type === 'custom' ? 'Custom' : 'Default'}`}
           icon={item.type === 'custom' ? Icon.Document : getCheatsheetIcon(item.slug)}
           accessories={[
-            { text: item.type === 'custom' ? 'Custom' : 'DevHints', icon: item.type === 'custom' ? Icon.Tag : Icon.Globe },
-            ...(item.isOffline ? [{ text: "Offline", icon: Icon.Download }] : []),
+            { text: item.type === 'custom' ? 'Custom' : 'Default', icon: item.type === 'custom' ? Icon.Tag : Icon.Globe },
+            ...(item.isOffline ? [{ icon: Icon.Checkmark, tooltip: "Available Offline" }] : []),
             ...(item.isFavorited ? [{ icon: Icon.Star, tooltip: "Favorited" }] : [])
           ]}
           actions={
@@ -336,7 +336,7 @@ function Command() {
                       : <SheetView slug={item.slug} />
                   }
                 />
-                {item.type === 'devhints' && (
+                {item.type === 'default' && (
                   <Action.OpenInBrowser 
                     url={Service.urlFor(item.slug)}
                     title="Open in Browser"
@@ -365,7 +365,7 @@ function Command() {
                     }} />}
                   />
                 )}
-                {item.type === 'devhints' && Service.getPreferences().enableOfflineStorage && (
+                {item.type === 'default' && Service.getPreferences().enableOfflineStorage && (
                   <Action
                     title={item.isOffline ? "Update Offline Copy" : "Download for Offline"}
                     icon={item.isOffline ? Icon.ArrowClockwise : Icon.Download}

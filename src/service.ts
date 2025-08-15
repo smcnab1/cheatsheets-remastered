@@ -19,7 +19,7 @@ interface OfflineCheatsheet {
 
 interface FavoriteCheatsheet {
   id: string;
-  type: 'custom' | 'devhints';
+  type: 'custom' | 'default';
   slug: string;
   title: string;
   favoritedAt: number;
@@ -624,7 +624,7 @@ class Service {
     }
   }
 
-  static async addToFavorites(type: 'custom' | 'devhints', slug: string, title: string): Promise<void> {
+  static async addToFavorites(type: 'custom' | 'default', slug: string, title: string): Promise<void> {
     try {
       const favorites = await this.getFavorites();
       const existingIndex = favorites.findIndex(fav => fav.slug === slug && fav.type === type);
@@ -651,7 +651,7 @@ class Service {
     }
   }
 
-  static async removeFromFavorites(type: 'custom' | 'devhints', slug: string): Promise<void> {
+  static async removeFromFavorites(type: 'custom' | 'default', slug: string): Promise<void> {
     try {
       const favorites = await this.getFavorites();
       const filtered = favorites.filter(fav => !(fav.slug === slug && fav.type === type));
@@ -662,7 +662,7 @@ class Service {
     }
   }
 
-  static async isFavorited(type: 'custom' | 'devhints', slug: string): Promise<boolean> {
+  static async isFavorited(type: 'custom' | 'default', slug: string): Promise<boolean> {
     try {
       const favorites = await this.getFavorites();
       return favorites.some(fav => fav.slug === slug && fav.type === type);
@@ -672,7 +672,7 @@ class Service {
     }
   }
 
-  static async toggleFavorite(type: 'custom' | 'devhints', slug: string, title: string): Promise<boolean> {
+  static async toggleFavorite(type: 'custom' | 'default', slug: string, title: string): Promise<boolean> {
     try {
       const isFavorited = await this.isFavorited(type, slug);
       

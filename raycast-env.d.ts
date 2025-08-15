@@ -8,7 +8,7 @@
 /* eslint-disable @typescript-eslint/ban-types */
 
 type ExtensionPreferences = {
-  /** Enable Offline Storage - Store DevHints cheatsheets locally for offline access */
+  /** Enable Offline Storage - Store online cheatsheets locally for offline access */
   "enableOfflineStorage": boolean,
   /** Auto Update - Automatically check for updates based on frequency */
   "autoUpdate": boolean,
