@@ -1,5 +1,5 @@
 import React from 'react';
-import { Action, ActionPanel, Detail, Icon, List, Form, useNavigation, showToast, Toast, confirmAlert, Alert } from '@raycast/api';
+import { Action, ActionPanel, Detail, Icon, List, Form, useNavigation, showToast, Toast, confirmAlert, Alert, LocalStorage } from '@raycast/api';
 import { useEffect, useState } from 'react';
 
 import Service, { CustomCheatsheet } from './service';
@@ -9,6 +9,55 @@ import {
   stripTemplateTags,
   formatTables,
 } from './utils';
+
+// Icon mapping for different cheatsheet types
+const getCheatsheetIcon = (slug: string): Icon => {
+  const lowerSlug = slug.toLowerCase();
+  
+  if (lowerSlug.includes('javascript') || lowerSlug.includes('js')) return Icon.Code;
+  if (lowerSlug.includes('python') || lowerSlug.includes('py')) return Icon.Terminal;
+  if (lowerSlug.includes('git')) return Icon.Box;
+  if (lowerSlug.includes('docker')) return Icon.Box;
+  if (lowerSlug.includes('react') || lowerSlug.includes('vue') || lowerSlug.includes('angular')) return Icon.Window;
+  if (lowerSlug.includes('sql') || lowerSlug.includes('database')) return Icon.Document;
+  if (lowerSlug.includes('css') || lowerSlug.includes('html')) return Icon.Document;
+  if (lowerSlug.includes('node') || lowerSlug.includes('npm')) return Icon.Gear;
+  if (lowerSlug.includes('aws') || lowerSlug.includes('azure') || lowerSlug.includes('cloud')) return Icon.Cloud;
+  if (lowerSlug.includes('linux') || lowerSlug.includes('bash') || lowerSlug.includes('shell')) return Icon.Terminal;
+  if (lowerSlug.includes('vim') || lowerSlug.includes('emacs')) return Icon.Keyboard;
+  
+  return Icon.Document; // Default icon
+};
+
+// Custom hook for draft persistence
+function useDraftPersistence(key: string, defaultValue: string) {
+  const [value, setValue] = useState(defaultValue);
+  const [draft, setDraft] = useState(defaultValue);
+
+  useEffect(() => {
+    // Load draft from storage
+    LocalStorage.getItem<string>(key).then((stored) => {
+      if (stored && stored !== defaultValue) {
+        setValue(stored);
+        setDraft(stored);
+      }
+    });
+  }, [key, defaultValue]);
+
+  const updateValue = (newValue: string) => {
+    setValue(newValue);
+    setDraft(newValue);
+    // Save to storage
+    LocalStorage.setItem(key, newValue);
+  };
+
+  const clearDraft = () => {
+    LocalStorage.removeItem(key);
+    setDraft(defaultValue);
+  };
+
+  return { value, updateValue, clearDraft };
+}
 
 function Command() {
   const [sheets, setSheets] = useState<string[]>([]);
@@ -170,15 +219,15 @@ function Command() {
         />
       </List.Section>
 
-      <List.Section title="GitHub Cheatsheets" subtitle={`${sheets.length} sheets from devhints.io`}>
+      <List.Section title="DevHints Cheatsheets" subtitle={`${sheets.length} sheets from devhints.io`}>
         {sheets.map((sheet) => (
           <List.Item
             key={sheet}
             title={sheet}
-            subtitle="From devhints.io"
-            icon={Icon.Globe}
+            subtitle="From DevHints"
+            icon={getCheatsheetIcon(sheet)}
             accessories={[
-              { text: "GitHub", icon: Icon.Link },
+              { text: "DevHints", icon: Icon.Globe },
               { icon: Icon.Link }
             ]}
             actions={
@@ -308,9 +357,24 @@ interface EditCustomSheetFormProps {
 
 function EditCustomSheetForm({ sheet, onUpdated }: EditCustomSheetFormProps) {
   const { pop } = useNavigation();
-  const [title, setTitle] = useState(sheet.title);
-  const [content, setContent] = useState(sheet.content);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { value: title, updateValue: updateTitle, clearDraft: clearTitleDraft } = useDraftPersistence(`edit-draft-title-${sheet.id}`, sheet.title);
+  const { value: content, updateValue: updateContent, clearDraft: clearContentDraft } = useDraftPersistence(`edit-draft-content-${sheet.id}`, sheet.content);
+
+  // Load draft data if available
+  useEffect(() => {
+    if (title !== sheet.title) updateTitle(title);
+    if (content !== sheet.content) updateContent(content);
+  }, [title, content, sheet.title, sheet.content]);
+
+  // Save draft as user types
+  const handleTitleChange = (value: string) => {
+    updateTitle(value);
+  };
+
+  const handleContentChange = (value: string) => {
+    updateContent(value);
+  };
 
   async function handleSubmit() {
     if (!title.trim() || !content.trim()) {
@@ -325,6 +389,11 @@ function EditCustomSheetForm({ sheet, onUpdated }: EditCustomSheetFormProps) {
     try {
       setIsSubmitting(true);
       await Service.updateCustomCheatsheet(sheet.id, title.trim(), content.trim());
+      
+      // Clear drafts after successful save
+      clearTitleDraft();
+      clearContentDraft();
+      
       onUpdated();
       
       showToast({
@@ -363,7 +432,7 @@ function EditCustomSheetForm({ sheet, onUpdated }: EditCustomSheetFormProps) {
         title="Title"
         placeholder="Enter cheatsheet title"
         value={title}
-        onChange={setTitle}
+        onChange={handleTitleChange}
         error={title.trim() === '' ? "Title is required" : undefined}
       />
       <Form.TextArea
@@ -371,7 +440,7 @@ function EditCustomSheetForm({ sheet, onUpdated }: EditCustomSheetFormProps) {
         title="Content"
         placeholder="Enter cheatsheet content (Markdown supported)"
         value={content}
-        onChange={setContent}
+        onChange={handleContentChange}
         error={content.trim() === '' ? "Content is required" : undefined}
       />
     </Form>
@@ -384,9 +453,24 @@ interface CreateCustomSheetFormProps {
 
 function CreateCustomSheetForm({ onCreated }: CreateCustomSheetFormProps) {
   const { pop } = useNavigation();
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { value: title, updateValue: updateTitle, clearDraft: clearTitleDraft } = useDraftPersistence('create-draft-title', '');
+  const { value: content, updateValue: updateContent, clearDraft: clearContentDraft } = useDraftPersistence('create-draft-content', '');
+
+  // Load draft data if available
+  useEffect(() => {
+    if (title) updateTitle(title);
+    if (content) updateContent(content);
+  }, [title, content]);
+
+  // Save draft as user types
+  const handleTitleChange = (value: string) => {
+    updateTitle(value);
+  };
+
+  const handleContentChange = (value: string) => {
+    updateContent(value);
+  };
 
   async function handleSubmit() {
     if (!title.trim() || !content.trim()) {
@@ -401,6 +485,11 @@ function CreateCustomSheetForm({ onCreated }: CreateCustomSheetFormProps) {
     try {
       setIsSubmitting(true);
       await Service.createCustomCheatsheet(title.trim(), content.trim());
+      
+      // Clear drafts after successful creation
+      clearTitleDraft();
+      clearContentDraft();
+      
       onCreated();
       
       showToast({
@@ -439,7 +528,7 @@ function CreateCustomSheetForm({ onCreated }: CreateCustomSheetFormProps) {
         title="Title"
         placeholder="Enter cheatsheet title"
         value={title}
-        onChange={setTitle}
+        onChange={handleTitleChange}
         error={title.trim() === '' ? "Title is required" : undefined}
       />
       <Form.TextArea
@@ -447,7 +536,7 @@ function CreateCustomSheetForm({ onCreated }: CreateCustomSheetFormProps) {
         title="Content"
         placeholder="Enter cheatsheet content (Markdown supported)"
         value={content}
-        onChange={setContent}
+        onChange={handleContentChange}
         error={content.trim() === '' ? "Content is required" : undefined}
       />
     </Form>
