@@ -22,6 +22,18 @@
       "title": "Show Cheatsheets",
       "description": "List all cheatsheets",
       "mode": "view"
+    },
+    {
+      "name": "create-custom-cheatsheet",
+      "title": "Create Custom Cheatsheet",
+      "description": "Create a new custom cheatsheet",
+      "mode": "view"
+    },
+    {
+      "name": "manage-custom-cheatsheets",
+      "title": "Manage Custom Cheatsheets",
+      "description": "View, edit, and manage your custom cheatsheets",
+      "mode": "view"
     }
   ],
   "preferences": [

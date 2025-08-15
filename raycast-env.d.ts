@@ -22,10 +22,18 @@ declare type Preferences = ExtensionPreferences
 declare namespace Preferences {
   /** Preferences accessible in the `show-cheatsheets` command */
   export type ShowCheatsheets = ExtensionPreferences & {}
+  /** Preferences accessible in the `create-custom-cheatsheet` command */
+  export type CreateCustomCheatsheet = ExtensionPreferences & {}
+  /** Preferences accessible in the `manage-custom-cheatsheets` command */
+  export type ManageCustomCheatsheets = ExtensionPreferences & {}
 }
 
 declare namespace Arguments {
   /** Arguments passed to the `show-cheatsheets` command */
   export type ShowCheatsheets = {}
+  /** Arguments passed to the `create-custom-cheatsheet` command */
+  export type CreateCustomCheatsheet = {}
+  /** Arguments passed to the `manage-custom-cheatsheets` command */
+  export type ManageCustomCheatsheets = {}
 }
 
