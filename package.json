@@ -3,7 +3,7 @@
   "name": "cheatsheets-remastered",
   "title": "Cheatsheets Remastered",
   "description": "A remastered Cheatsheets extension with enhanced functionality, custom sheet creation, and an improved browsing experience beyond devhints.io.",
-  "icon": "icon.png",
+  "icon": "icon.svg",
   "author": "smcnab1",
   "contributors": [],
   "categories": [
@@ -33,6 +33,18 @@
       "name": "manage-custom-cheatsheets",
       "title": "Manage Custom Cheatsheets",
       "description": "View, edit, and manage your custom cheatsheets",
+      "mode": "view"
+    },
+    {
+      "name": "copy-cheatsheet",
+      "title": "Copy Cheatsheet",
+      "description": "Search and copy cheatsheet content to clipboard",
+      "mode": "view"
+    },
+    {
+      "name": "search-cheatsheets",
+      "title": "Search Cheatsheets",
+      "description": "Search across all cheatsheets with advanced filtering",
       "mode": "view"
     }
   ],

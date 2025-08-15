@@ -758,5 +758,5 @@ function CreateCustomSheetForm({ onCreated }: CreateCustomSheetProps) {
   );
 }
 
-export { EditCustomSheetForm, CustomSheetView };
+export { EditCustomSheetForm, CustomSheetView, SheetView };
 export default Command;
