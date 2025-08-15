@@ -62,7 +62,6 @@ function Command() {
   const [sheets, setSheets] = useState<string[]>([]);
   const [customSheets, setCustomSheets] = useState<CustomCheatsheet[]>([]);
   const [offlineSheets, setOfflineSheets] = useState<OfflineCheatsheet[]>([]);
-  const [preferences, setPreferences] = useState<Preferences | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,24 +74,9 @@ function Command() {
       setIsLoading(true);
       setError(null);
       
-      // Load preferences first
-      const prefs = await Service.getPreferences();
-      setPreferences(prefs);
-      
-      // Check if we should update based on preferences
-      const shouldUpdate = Service.shouldUpdate(prefs);
-      
-      if (shouldUpdate && prefs.enableOfflineStorage) {
-        // Show update notification
-        showToast({
-          style: Toast.Style.Animated,
-          title: "Checking for updates",
-          message: "Fetching latest cheatsheets..."
-        });
-      }
-      
+      // Always try to fetch fresh data from DevHints by default
       const [files, custom, offline] = await Promise.all([
-        shouldUpdate ? Service.listFiles() : Promise.resolve([]),
+        Service.listFiles(),
         Service.getCustomCheatsheets(),
         Service.getOfflineCheatsheets()
       ]);
@@ -100,21 +84,14 @@ function Command() {
       if (files.length > 0) {
         const sheets = getSheets(files);
         setSheets(sheets);
-      } else if (offline.length > 0) {
-        // Use offline data if no fresh data available
+      } else if (offline.length > 0 && Service.getPreferences().enableOfflineStorage) {
+        // Only use offline data if no fresh data available AND offline storage is enabled
         const offlineSlugs = offline.map(sheet => sheet.slug);
         setSheets(offlineSlugs);
       }
       
       setCustomSheets(custom);
       setOfflineSheets(offline);
-      
-      // Update preferences if we checked for updates
-      if (shouldUpdate) {
-        prefs.lastUpdateCheck = Date.now();
-        await Service.setPreferences(prefs);
-        setPreferences(prefs);
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load cheatsheets');
       showToast({
@@ -221,7 +198,7 @@ function Command() {
         <ActionPanel>
           <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={handleRefresh} />
           <Action title="Create Custom Cheatsheet" icon={Icon.Plus} onAction={() => {}} />
-          {preferences?.enableOfflineStorage && (
+          {Service.getPreferences().enableOfflineStorage && (
             <>
               <Action title="Download All for Offline" icon={Icon.Download} onAction={handleDownloadAll} />
               <Action title="Clear Offline Storage" icon={Icon.Trash} onAction={handleClearOffline} />
@@ -299,13 +276,16 @@ function Command() {
             <List.Item
               key={sheet}
               title={sheet}
-              subtitle={`From DevHints${isOffline ? ' • Offline' : ''}`}
+              subtitle={`From DevHints${isOffline ? ' • Available Offline' : ''}`}
               icon={getCheatsheetIcon(sheet)}
               accessories={[
                 { text: "DevHints", icon: Icon.Globe },
-                { icon: Icon.Link },
-                ...(isOffline ? [{ text: "Offline", icon: Icon.Download }] : []),
-                ...(offlineSheet ? [{ date: new Date(offlineSheet.lastUpdated) }] : [])
+                ...(isOffline ? [
+                  { text: "Offline", icon: Icon.Download },
+                  { date: new Date(offlineSheet!.lastUpdated) }
+                ] : [
+                  { icon: Icon.Link }
+                ])
               ]}
               actions={
                 <ActionPanel>
@@ -327,7 +307,7 @@ function Command() {
                       content={sheet}
                       icon={Icon.CopyClipboard}
                     />
-                    {preferences?.enableOfflineStorage && (
+                    {Service.getPreferences().enableOfflineStorage && (
                       <Action
                         title={isOffline ? "Update Offline Copy" : "Download for Offline"}
                         icon={isOffline ? Icon.ArrowClockwise : Icon.Download}
@@ -361,7 +341,7 @@ function Command() {
         })}
       </List.Section>
 
-      {preferences?.enableOfflineStorage && offlineSheets.length > 0 && (
+      {Service.getPreferences().enableOfflineStorage && offlineSheets.length > 0 && (
         <List.Section title="Offline Storage" subtitle={`${offlineSheets.length} sheets stored locally`}>
           <List.Item
             title="Offline Storage Info"

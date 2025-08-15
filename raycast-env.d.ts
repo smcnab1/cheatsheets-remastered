@@ -7,7 +7,14 @@
 
 /* eslint-disable @typescript-eslint/ban-types */
 
-type ExtensionPreferences = {}
+type ExtensionPreferences = {
+  /** Enable Offline Storage - Store DevHints cheatsheets locally for offline access */
+  "enableOfflineStorage": boolean,
+  /** Auto Update - Automatically check for updates based on frequency */
+  "autoUpdate": boolean,
+  /** Update Frequency - How often to check for new cheatsheets */
+  "updateFrequency": "every-use" | "weekly" | "monthly" | "never"
+}
 
 /** Preferences accessible in all the extension's commands */
 declare type Preferences = ExtensionPreferences
@@ -15,14 +22,10 @@ declare type Preferences = ExtensionPreferences
 declare namespace Preferences {
   /** Preferences accessible in the `show-cheatsheets` command */
   export type ShowCheatsheets = ExtensionPreferences & {}
-  /** Preferences accessible in the `preferences` command */
-  export type Preferences = ExtensionPreferences & {}
 }
 
 declare namespace Arguments {
   /** Arguments passed to the `show-cheatsheets` command */
   export type ShowCheatsheets = {}
-  /** Arguments passed to the `preferences` command */
-  export type Preferences = {}
 }
 

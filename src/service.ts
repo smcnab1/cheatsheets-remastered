@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { LocalStorage, showToast, Toast } from '@raycast/api';
+import { LocalStorage, showToast, Toast, getPreferenceValues } from '@raycast/api';
 
 const BRANCH = 'master';
 const OWNER = 'rstacruz';
@@ -8,7 +8,6 @@ const REPO = 'cheatsheets';
 interface Preferences {
   enableOfflineStorage: boolean;
   updateFrequency: 'every-use' | 'weekly' | 'monthly' | 'never';
-  lastUpdateCheck: number;
   autoUpdate: boolean;
 }
 
@@ -202,49 +201,34 @@ services:
 };
 
 class Service {
-  // Preferences management
-  static async getPreferences(): Promise<Preferences> {
+  // Preferences management using Raycast's built-in system
+  static getPreferences(): Preferences {
     try {
-      const prefs = await LocalStorage.getItem<string>('cheatsheet-preferences');
-      if (prefs) {
-        return JSON.parse(prefs);
-      }
+      const prefs = getPreferenceValues<Preferences>();
+      return {
+        enableOfflineStorage: prefs.enableOfflineStorage || false,
+        updateFrequency: prefs.updateFrequency || 'never',
+        autoUpdate: prefs.autoUpdate || false
+      };
     } catch (error) {
       console.warn('Failed to load preferences:', error);
+      // Default preferences
+      return {
+        enableOfflineStorage: false,
+        updateFrequency: 'never',
+        autoUpdate: false
+      };
     }
-    
-    // Default preferences
-    return {
-      enableOfflineStorage: true,
-      updateFrequency: 'weekly',
-      lastUpdateCheck: Date.now(),
-      autoUpdate: true
-    };
-  }
-
-  static async setPreferences(preferences: Preferences): Promise<void> {
-    await LocalStorage.setItem('cheatsheet-preferences', JSON.stringify(preferences));
   }
 
   // Check if update is needed based on frequency
-  static shouldUpdate(preferences: Preferences): boolean {
+  static shouldUpdate(): boolean {
+    const preferences = this.getPreferences();
     if (!preferences.autoUpdate) return false;
     
-    const now = Date.now();
-    const lastCheck = preferences.lastUpdateCheck;
-    
-    switch (preferences.updateFrequency) {
-      case 'every-use':
-        return true;
-      case 'weekly':
-        return (now - lastCheck) > (7 * 24 * 60 * 60 * 1000);
-      case 'monthly':
-        return (now - lastCheck) > (30 * 24 * 60 * 60 * 1000);
-      case 'never':
-        return false;
-      default:
-        return false;
-    }
+    // For now, always return false since we're not tracking lastUpdateCheck
+    // This can be enhanced later with LocalStorage for tracking
+    return false;
   }
 
   // Offline storage management
@@ -331,22 +315,12 @@ class Service {
   // Enhanced get sheet with offline storage
   static async getSheet(slug: string): Promise<string> {
     try {
-      const preferences = await this.getPreferences();
-      
-      // Check offline storage first if enabled
-      if (preferences.enableOfflineStorage) {
-        const offlineSheet = await this.getOfflineCheatsheet(slug);
-        if (offlineSheet) {
-          console.log(`Using offline version of ${slug}`);
-          return offlineSheet.content;
-        }
-      }
-      
-      // Fetch from GitHub
+      // Always try to fetch from GitHub first by default
       const response = await fileClient.get<string>(`/${slug}.md`);
       const content = response.data;
       
-      // Save to offline storage if enabled
+      // Only save to offline storage if explicitly enabled
+      const preferences = this.getPreferences();
       if (preferences.enableOfflineStorage) {
         try {
           await this.saveOfflineCheatsheet(slug, content);
@@ -359,8 +333,8 @@ class Service {
     } catch (error) {
       console.warn(`Failed to fetch sheet ${slug}, trying offline storage:`, error);
       
-      // Try offline storage as fallback
-      const prefs = await this.getPreferences();
+      // Try offline storage as fallback only if enabled
+      const prefs = this.getPreferences();
       if (prefs?.enableOfflineStorage) {
         const offlineSheet = await this.getOfflineCheatsheet(slug);
         if (offlineSheet) {
@@ -391,7 +365,7 @@ class Service {
   // Bulk download for offline storage
   static async downloadAllForOffline(): Promise<{ success: number; failed: number }> {
     try {
-      const preferences = await this.getPreferences();
+      const preferences = this.getPreferences();
       if (!preferences.enableOfflineStorage) {
         throw new Error('Offline storage is disabled');
       }
@@ -417,10 +391,6 @@ class Service {
           failed++;
         }
       }
-      
-      // Update preferences
-      preferences.lastUpdateCheck = Date.now();
-      await this.setPreferences(preferences);
       
       showToast({
         style: Toast.Style.Success,

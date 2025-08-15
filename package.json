@@ -18,12 +18,50 @@
       "title": "Show Cheatsheets",
       "description": "List all cheatsheets",
       "mode": "view"
+    }
+  ],
+  "preferences": [
+    {
+      "name": "enableOfflineStorage",
+      "type": "checkbox",
+      "required": false,
+      "title": "Enable Offline Storage",
+      "description": "Store DevHints cheatsheets locally for offline access",
+      "default": false
     },
     {
-      "name": "preferences",
-      "title": "Preferences",
-      "description": "Manage offline storage and update settings",
-      "mode": "view"
+      "name": "autoUpdate",
+      "type": "checkbox",
+      "required": false,
+      "title": "Auto Update",
+      "description": "Automatically check for updates based on frequency",
+      "default": false
+    },
+    {
+      "name": "updateFrequency",
+      "type": "dropdown",
+      "required": false,
+      "title": "Update Frequency",
+      "description": "How often to check for new cheatsheets",
+      "default": "never",
+      "data": [
+        {
+          "title": "Every Use",
+          "value": "every-use"
+        },
+        {
+          "title": "Once a Week",
+          "value": "weekly"
+        },
+        {
+          "title": "Once a Month",
+          "value": "monthly"
+        },
+        {
+          "title": "Never",
+          "value": "never"
+        }
+      ]
     }
   ],
   "dependencies": {
