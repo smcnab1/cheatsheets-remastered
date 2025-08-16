@@ -106,6 +106,7 @@
     "dev": "ray develop",
     "fix-lint": "ray lint --fix",
     "lint": "ray lint",
-    "normalize:icons": "node scripts/normalize-icons.js"
+    "normalize:icons": "node scripts/normalize-icons.js",
+    "publish": "npx @raycast/api@latest publish"
   }
 }
