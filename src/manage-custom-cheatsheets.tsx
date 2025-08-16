@@ -1,187 +1,214 @@
-import { Action, ActionPanel, Detail, Icon, List, Form, useNavigation, confirmAlert, Alert } from '@raycast/api';
-import { useEffect, useState } from 'react';
+import React from 'react';
+import {
+  List,
+  ActionPanel,
+  Action,
+  Icon,
+  showToast,
+  Toast,
+  confirmAlert,
+  Alert,
+  useNavigation,
+} from '@raycast/api';
+import { useState, useEffect } from 'react';
 import Service, { CustomCheatsheet } from './service';
 
-function Command() {
+export default function ManageCustomCheatsheets() {
   const [customSheets, setCustomSheets] = useState<CustomCheatsheet[]>([]);
-  const [isLoading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchText, setSearchText] = useState('');
+  const { push } = useNavigation();
 
   useEffect(() => {
-    loadCustomCheatsheets();
+    loadCustomSheets();
   }, []);
 
-  async function loadCustomCheatsheets() {
-    const sheets = await Service.getCustomCheatsheets();
-    setCustomSheets(sheets);
-    setLoading(false);
+  async function loadCustomSheets() {
+    try {
+      setIsLoading(true);
+      const sheets = await Service.getCustomCheatsheets();
+      setCustomSheets(sheets);
+    } catch (error) {
+      showToast({
+        style: Toast.Style.Failure,
+        title: 'Error',
+        message: 'Failed to load custom cheatsheets',
+      });
+    } finally {
+      setIsLoading(false);
+    }
   }
 
-  async function handleDelete(id: string) {
+  async function handleDeleteSheet(id: string, title: string) {
     const confirmed = await confirmAlert({
-      title: "Delete Cheatsheet",
-      message: "Are you sure you want to delete this custom cheatsheet?",
+      title: 'Delete Custom Cheatsheet',
+      message: `Are you sure you want to delete "${title}"? This action cannot be undone.`,
       primaryAction: {
-        title: "Delete",
+        title: 'Delete',
         style: Alert.ActionStyle.Destructive,
       },
     });
 
     if (confirmed) {
-      await Service.deleteCustomCheatsheet(id);
-      await loadCustomCheatsheets();
+      try {
+        await Service.deleteCustomCheatsheet(id);
+        await loadCustomSheets();
+
+        showToast({
+          style: Toast.Style.Success,
+          title: 'Deleted',
+          message: `"${title}" has been removed`,
+        });
+      } catch (err) {
+        showToast({
+          style: Toast.Style.Failure,
+          title: 'Error',
+          message: 'Failed to delete cheatsheet',
+        });
+      }
     }
   }
 
+  const filteredSheets = customSheets.filter(
+    (sheet) =>
+      sheet.title.toLowerCase().includes(searchText.toLowerCase()) ||
+      sheet.content.toLowerCase().includes(searchText.toLowerCase()) ||
+      sheet.tags?.some((tag) =>
+        tag.toLowerCase().includes(searchText.toLowerCase()),
+      ) ||
+      sheet.description?.toLowerCase().includes(searchText.toLowerCase()),
+  );
+
   return (
-    <List isLoading={isLoading}>
-      <List.Item
-        title="Create New Cheatsheet"
-        icon={Icon.Plus}
-        actions={
-          <ActionPanel>
-            <Action.Push
-              title="Create New"
-              icon={Icon.Plus}
-              target={<CreateCheatsheetForm onCreated={loadCustomCheatsheets} />}
-            />
-          </ActionPanel>
-        }
+    <List
+      isLoading={isLoading}
+      searchBarPlaceholder="Search custom cheatsheets..."
+      searchText={searchText}
+      onSearchTextChange={setSearchText}
+      actions={
+        <ActionPanel>
+          <Action
+            title="Refresh"
+            icon={Icon.ArrowClockwise}
+            onAction={loadCustomSheets}
+          />
+          <Action
+            title="Create New"
+            icon={Icon.Plus}
+            shortcut={{ modifiers: ['cmd'], key: 'n' }}
+            onAction={() =>
+              push(<CreateCustomCheatsheet onCreated={loadCustomSheets} />)
+            }
+          />
+        </ActionPanel>
+      }
+    >
+      <List.Section
+        title="Overview"
+        subtitle={`${filteredSheets.length} custom sheets`}
       />
-      {customSheets.map((sheet) => (
-        <List.Item
-          key={sheet.id}
-          title={sheet.title}
-          subtitle={`Created: ${new Date(sheet.createdAt).toLocaleDateString()}`}
+      {filteredSheets.length === 0 && !isLoading ? (
+        <List.EmptyView
+          icon={Icon.Document}
+          title="No custom cheatsheets found"
+          description={
+            searchText
+              ? `No cheatsheets match "${searchText}"`
+              : 'Create your first custom cheatsheet to get started'
+          }
           actions={
             <ActionPanel>
-              <Action.Push
-                title="View Cheatsheet"
-                icon={Icon.Document}
-                target={<CustomCheatsheetView sheet={sheet} />}
-              />
-              <Action.Push
-                title="Edit Cheatsheet"
-                icon={Icon.Pencil}
-                target={<EditCheatsheetForm sheet={sheet} onUpdated={loadCustomCheatsheets} />}
-              />
               <Action
-                title="Delete Cheatsheet"
-                icon={Icon.Trash}
-                style={Action.Style.Destructive}
-                onAction={() => handleDelete(sheet.id)}
+                title="Create New"
+                icon={Icon.Plus}
+                onAction={() =>
+                  push(<CreateCustomCheatsheet onCreated={loadCustomSheets} />)
+                }
               />
             </ActionPanel>
           }
         />
-      ))}
+      ) : (
+        filteredSheets.map((sheet) => (
+          <List.Item
+            key={sheet.id}
+            title={sheet.title}
+            subtitle={sheet.description || 'No description'}
+            icon={Icon.Document}
+            accessories={[
+              { text: 'Custom', icon: Icon.Tag },
+              { date: new Date(sheet.updatedAt) },
+              ...(sheet.tags && sheet.tags.length > 0
+                ? [{ text: sheet.tags.join(', '), icon: Icon.Tag }]
+                : []),
+            ]}
+            actions={
+              <ActionPanel>
+                <ActionPanel.Section title="View & Edit">
+                  <Action.Push
+                    title="View Cheatsheet"
+                    icon={Icon.Window}
+                    target={<CustomSheetView sheet={sheet} />}
+                  />
+                  <Action.Push
+                    title="Edit Cheatsheet"
+                    icon={Icon.Pencil}
+                    shortcut={{ modifiers: ['cmd'], key: 'e' }}
+                    target={
+                      <EditCustomSheetForm
+                        sheet={sheet}
+                        onUpdated={loadCustomSheets}
+                      />
+                    }
+                  />
+                </ActionPanel.Section>
+                <ActionPanel.Section title="Actions">
+                  <Action
+                    title="Add to Favorites"
+                    icon={Icon.Star}
+                    shortcut={{ modifiers: ['cmd'], key: 'f' }}
+                    onAction={async () => {
+                      await Service.addToFavorites(
+                        'custom',
+                        sheet.id,
+                        sheet.title,
+                      );
+                      showToast({
+                        style: Toast.Style.Success,
+                        title: 'Favorited',
+                        message: sheet.title,
+                      });
+                    }}
+                  />
+                  <Action.CopyToClipboard
+                    title="Copy Title"
+                    content={sheet.title}
+                    icon={Icon.CopyClipboard}
+                  />
+                  <Action.CopyToClipboard
+                    title="Copy Content"
+                    content={sheet.content}
+                    icon={Icon.CopyClipboard}
+                    shortcut={{ modifiers: ['cmd'], key: 'c' }}
+                  />
+                </ActionPanel.Section>
+                <ActionPanel.Section title="Danger Zone">
+                  <Action
+                    title="Delete Cheatsheet"
+                    icon={Icon.Trash}
+                    style={Action.Style.Destructive}
+                    onAction={() => handleDeleteSheet(sheet.id, sheet.title)}
+                  />
+                </ActionPanel.Section>
+              </ActionPanel>
+            }
+          />
+        ))
+      )}
     </List>
   );
 }
 
-interface CreateCheatsheetFormProps {
-  onCreated: () => void;
-}
-
-function CreateCheatsheetForm({ onCreated }: CreateCheatsheetFormProps) {
-  const { pop } = useNavigation();
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-
-  async function handleSubmit() {
-    if (!title.trim() || !content.trim()) return;
-    
-    await Service.createCustomCheatsheet(title.trim(), content.trim());
-    onCreated();
-    pop();
-  }
-
-  return (
-    <Form
-      actions={
-        <ActionPanel>
-          <Action.SubmitForm title="Create Cheatsheet" onSubmit={handleSubmit} />
-        </ActionPanel>
-      }
-    >
-      <Form.TextField
-        id="title"
-        title="Title"
-        placeholder="Enter cheatsheet title"
-        value={title}
-        onChange={setTitle}
-      />
-      <Form.TextArea
-        id="content"
-        title="Content"
-        placeholder="Enter cheatsheet content (Markdown supported)"
-        value={content}
-        onChange={setContent}
-      />
-    </Form>
-  );
-}
-
-interface EditCheatsheetFormProps {
-  sheet: CustomCheatsheet;
-  onUpdated: () => void;
-}
-
-function EditCheatsheetForm({ sheet, onUpdated }: EditCheatsheetFormProps) {
-  const { pop } = useNavigation();
-  const [title, setTitle] = useState(sheet.title);
-  const [content, setContent] = useState(sheet.content);
-
-  async function handleSubmit() {
-    if (!title.trim() || !content.trim()) return;
-    
-    await Service.updateCustomCheatsheet(sheet.id, title.trim(), content.trim());
-    onUpdated();
-    pop();
-  }
-
-  return (
-    <Form
-      actions={
-        <ActionPanel>
-          <Action.SubmitForm title="Update Cheatsheet" onSubmit={handleSubmit} />
-        </ActionPanel>
-      }
-    >
-      <Form.TextField
-        id="title"
-        title="Title"
-        placeholder="Enter cheatsheet title"
-        value={title}
-        onChange={setTitle}
-      />
-      <Form.TextArea
-        id="content"
-        title="Content"
-        placeholder="Enter cheatsheet content (Markdown supported)"
-        value={content}
-        onChange={setContent}
-      />
-    </Form>
-  );
-}
-
-interface CustomCheatsheetViewProps {
-  sheet: CustomCheatsheet;
-}
-
-function CustomCheatsheetView({ sheet }: CustomCheatsheetViewProps) {
-  return (
-    <Detail
-      markdown={sheet.content}
-      metadata={
-        <Detail.Metadata>
-          <Detail.Metadata.Label title="Title" text={sheet.title} />
-          <Detail.Metadata.Label title="Created" text={new Date(sheet.createdAt).toLocaleString()} />
-          <Detail.Metadata.Label title="Updated" text={new Date(sheet.updatedAt).toLocaleString()} />
-        </Detail.Metadata>
-      }
-    />
-  );
-}
-
-export default Command;
+// Import the components we need
+import { CreateCustomCheatsheet } from './create-custom-cheatsheet';
+import { EditCustomSheetForm, CustomSheetView } from './show-cheatsheets';
