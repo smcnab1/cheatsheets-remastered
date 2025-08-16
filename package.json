@@ -1,9 +1,10 @@
 {
   "$schema": "https://www.raycast.com/schemas/extension.json",
+  "version": "1.0.0",
   "name": "cheatsheets-remastered",
   "title": "Cheatsheets Remastered",
-  "description": "A remastered Cheatsheets extension with enhanced functionality, custom sheet creation, and an improved browsing experience beyond devhints.io.",
-  "icon": "icon.svg",
+  "description": "A remastered Cheatsheets extension with enhanced functionality, custom sheet creation, and an improved browsing experience.",
+  "icon": "logo.png",
   "author": "smcnab1",
   "contributors": [],
   "categories": [
@@ -13,8 +14,7 @@
   ],
   "license": "MIT",
   "platforms": [
-    "macOS",
-    "Windows"
+    "macOS"
   ],
   "commands": [
     {
@@ -50,51 +50,45 @@
   ],
   "preferences": [
     {
-      "name": "enableOfflineStorage",
-      "type": "checkbox",
-      "required": false,
-      "title": "Enable Offline Storage",
-      "description": "Store online cheatsheets locally for offline access",
-      "default": false
-    },
-    {
-      "name": "autoUpdate",
-      "type": "checkbox",
-      "required": false,
-      "title": "Auto Update",
-      "description": "Automatically check for updates based on frequency",
-      "default": false
-    },
-    {
-      "name": "updateFrequency",
+      "name": "iconSource",
       "type": "dropdown",
-      "required": false,
-      "title": "Update Frequency",
-      "description": "How often to check for new cheatsheets",
-      "default": "never",
+      "required": true,
+      "title": "Icon Source",
+      "description": "Where to load cheatsheet icons from (built-in prefers local assets)",
+      "default": "builtin",
       "data": [
         {
-          "title": "Every Use",
-          "value": "every-use"
+          "title": "Raycast System Icons",
+          "value": "raycast"
         },
         {
-          "title": "Once a Week",
-          "value": "weekly"
+          "title": "Built-in",
+          "value": "builtin"
         },
         {
-          "title": "Once a Month",
-          "value": "monthly"
-        },
-        {
-          "title": "Never",
-          "value": "never"
+          "title": "Custom Directory",
+          "value": "custom"
         }
       ]
+    },
+    {
+      "name": "customIconDirectory",
+      "type": "directory",
+      "required": false,
+      "title": "Custom Icon Directory",
+      "description": "Folder with images like php.png, docker.svg, aws.png, etc."
+    },
+    {
+      "name": "githubToken",
+      "type": "password",
+      "required": false,
+      "title": "GitHub Token (optional)",
+      "description": "Optional: Improves rate limits for online content search (local search doesn’t require it)"
     }
   ],
   "dependencies": {
-    "@raycast/api": "^1.28.0",
-    "@raycast/utils": "^2.2.0",
+    "@raycast/api": "1.102.4",
+    "@raycast/utils": "2.2.0",
     "axios": "^1.6.0"
   },
   "devDependencies": {
@@ -111,6 +105,7 @@
     "build": "ray build -e dist",
     "dev": "ray develop",
     "fix-lint": "ray lint --fix",
-    "lint": "ray lint"
+    "lint": "ray lint",
+    "normalize:icons": "node scripts/normalize-icons.js"
   }
 }

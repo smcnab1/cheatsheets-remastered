@@ -1,7 +1,24 @@
 import React from 'react';
-import { Form, ActionPanel, Action, Icon, showToast, Toast, LocalStorage, useNavigation } from '@raycast/api';
+import {
+  Form,
+  ActionPanel,
+  Action,
+  Icon,
+  showToast,
+  Toast,
+  LocalStorage,
+  useNavigation,
+} from '@raycast/api';
 import { useState } from 'react';
 import Service from './service';
+
+type CreateFormValues = {
+  title: string;
+  content: string;
+  tags?: string;
+  description?: string;
+  icon?: string;
+};
 
 // Custom hook for draft persistence
 function useDraftPersistence(key: string, defaultValue: string) {
@@ -30,64 +47,92 @@ function useDraftPersistence(key: string, defaultValue: string) {
   return { value, updateValue, clearDraft };
 }
 
-export function CreateCustomCheatsheet({ onCreated }: { onCreated?: () => void }) {
+export function CreateCustomCheatsheet({
+  onCreated,
+}: {
+  onCreated?: () => void;
+}) {
   const { pop } = useNavigation();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  const { value: title, updateValue: updateTitle, clearDraft: clearTitleDraft } = useDraftPersistence(
-    'create-custom-sheet-title',
-    ''
-  );
-  
-  const { value: content, updateValue: updateContent, clearDraft: clearContentDraft } = useDraftPersistence(
-    'create-custom-sheet-content',
-    ''
-  );
-  
-  const { value: tags, updateValue: updateTags, clearDraft: clearTagsDraft } = useDraftPersistence(
-    'create-custom-sheet-tags',
-    ''
-  );
-  
-  const { value: description, updateValue: updateDescription, clearDraft: clearDescriptionDraft } = useDraftPersistence(
-    'create-custom-sheet-description',
-    ''
-  );
+  const [showErrors, setShowErrors] = useState(false);
 
-  const handleSubmit = async (values: any) => {
+  const {
+    value: title,
+    updateValue: updateTitle,
+    clearDraft: clearTitleDraft,
+  } = useDraftPersistence('create-custom-sheet-title', '');
+
+  const {
+    value: content,
+    updateValue: updateContent,
+    clearDraft: clearContentDraft,
+  } = useDraftPersistence('create-custom-sheet-content', '');
+
+  const {
+    value: tags,
+    updateValue: updateTags,
+    clearDraft: clearTagsDraft,
+  } = useDraftPersistence('create-custom-sheet-tags', '');
+
+  const {
+    value: description,
+    updateValue: updateDescription,
+    clearDraft: clearDescriptionDraft,
+  } = useDraftPersistence('create-custom-sheet-description', '');
+  const {
+    value: icon,
+    updateValue: updateIcon,
+    clearDraft: clearIconDraft,
+  } = useDraftPersistence('create-custom-sheet-icon', '');
+
+  const handleSubmit = async (values: CreateFormValues) => {
     try {
       setIsSubmitting(true);
-      
-      const tagsArray = values.tags ? values.tags.split(',').map((tag: string) => tag.trim()).filter(Boolean) : [];
-      
+      setShowErrors(true);
+
+      // Client-side validation: avoid triggering a failing API call
+      if (!values.title?.trim() || !values.content?.trim()) {
+        setIsSubmitting(false);
+        return;
+      }
+
+      const tagsArray = values.tags
+        ? values.tags
+            .split(',')
+            .map((tag: string) => tag.trim())
+            .filter(Boolean)
+        : [];
+
       await Service.createCustomCheatsheet(
         values.title,
         values.content,
         tagsArray,
-        values.description
+        values.description,
+        values.icon,
       );
-      
+
       // Clear drafts after successful submission
       clearTitleDraft();
       clearContentDraft();
       clearTagsDraft();
       clearDescriptionDraft();
-      
+      clearIconDraft();
+
       if (onCreated) {
         onCreated();
       }
       pop();
-      
+
       showToast({
         style: Toast.Style.Success,
-        title: "Created",
-        message: `"${values.title}" has been added to your custom cheatsheets`
+        title: 'Created',
+        message: `"${values.title}" has been added to your custom cheatsheets`,
       });
     } catch (error) {
       showToast({
         style: Toast.Style.Failure,
-        title: "Error",
-        message: "Failed to create cheatsheet"
+        title: 'Error',
+        message: 'Failed to create cheatsheet',
       });
     } finally {
       setIsSubmitting(false);
@@ -104,6 +149,18 @@ export function CreateCustomCheatsheet({ onCreated }: { onCreated?: () => void }
             onSubmit={handleSubmit}
             icon={Icon.Document}
           />
+          <Action
+            title="Reset Draft"
+            icon={Icon.Trash}
+            style={Action.Style.Destructive}
+            onAction={() => {
+              clearTitleDraft();
+              clearContentDraft();
+              clearTagsDraft();
+              clearDescriptionDraft();
+              showToast({ style: Toast.Style.Success, title: 'Draft Cleared' });
+            }}
+          />
         </ActionPanel>
       }
     >
@@ -111,25 +168,27 @@ export function CreateCustomCheatsheet({ onCreated }: { onCreated?: () => void }
         text="Create a new custom cheatsheet that you can access offline and organize with tags."
         title="New Custom Cheatsheet"
       />
-      
+
       <Form.TextField
         id="title"
         title="Title"
         placeholder="Enter cheatsheet title (e.g., 'My Git Workflow')"
         value={title}
         onChange={updateTitle}
-        error={!title.trim() ? "Title is required" : undefined}
+        error={showErrors && !title.trim() ? 'Title is required' : undefined}
       />
-      
+
       <Form.TextArea
         id="content"
         title="Content"
         placeholder="Enter cheatsheet content (Markdown supported)"
         value={content}
         onChange={updateContent}
-        error={!content.trim() ? "Content is required" : undefined}
+        error={
+          showErrors && !content.trim() ? 'Content is required' : undefined
+        }
       />
-      
+
       <Form.TextField
         id="tags"
         title="Tags"
@@ -137,13 +196,20 @@ export function CreateCustomCheatsheet({ onCreated }: { onCreated?: () => void }
         value={tags}
         onChange={updateTags}
       />
-      
+
       <Form.TextField
         id="description"
         title="Description"
         placeholder="Enter optional description"
         value={description}
         onChange={updateDescription}
+      />
+      <Form.TextField
+        id="icon"
+        title="Icon (Optional)"
+        placeholder="Raycast Icon key (e.g., Code, Terminal, Cloud)"
+        value={icon}
+        onChange={updateIcon}
       />
     </Form>
   );
