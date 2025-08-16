@@ -1,6 +1,9 @@
 name: "Pull Request"
 description: "Propose changes to the extension or cheatsheets"
 title: "<type>: <short description>"
+labels: []
+assignees: []
+
 body:
   - type: markdown
     attributes:
@@ -12,6 +15,8 @@ body:
     attributes:
       label: What changed
       description: Briefly describe what this PR changes and why.
+      placeholder: |
+        e.g. Updated docker cheatsheet with docker-compose examples
     validations:
       required: true
 
@@ -19,6 +24,7 @@ body:
     id: scope
     attributes:
       label: Scope
+      description: Select all that apply
       options:
         - label: Extension code (TypeScript / UI)
         - label: Default cheatsheets under assets/cheatsheets/
@@ -33,26 +39,21 @@ body:
       placeholder: |
         - assets/cheatsheets/docker.md – added compose examples
         - src/default-tags.ts – mapped docker → docker.svg
-    validations:
-      required: false
 
   - type: textarea
     id: screenshots
     attributes:
       label: Screenshots (if UI changes)
-      description: Drag-and-drop images.
-    validations:
-      required: false
+      description: Drag-and-drop images here.
+      placeholder: |
+        ![before](url)
+        ![after](url)
 
   - type: checkboxes
     id: checks
     attributes:
       label: Checks
       options:
-        - label: I ran npm run lint locally and fixed warnings
-          required: true
-        - label: I updated src/default-tags.ts if I introduced new tags/topics
-          required: false
-        - label: I added/updated icons in assets/ if needed and ran npm run normalize:icons
-          required: false
-
+        - label: I ran `npm run lint` locally and fixed warnings
+        - label: I updated `src/default-tags.ts` if I introduced new tags/topics
+        - label: I added/updated icons in `assets/` if needed and ran `npm run normalize:icons`
