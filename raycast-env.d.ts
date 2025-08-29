@@ -28,8 +28,6 @@ declare namespace Preferences {
   export type ManageCustomCheatsheets = ExtensionPreferences & {}
   /** Preferences accessible in the `copy-cheatsheet` command */
   export type CopyCheatsheet = ExtensionPreferences & {}
-  /** Preferences accessible in the `search-cheatsheets` command */
-  export type SearchCheatsheets = ExtensionPreferences & {}
 }
 
 declare namespace Arguments {
@@ -41,7 +39,5 @@ declare namespace Arguments {
   export type ManageCustomCheatsheets = {}
   /** Arguments passed to the `copy-cheatsheet` command */
   export type CopyCheatsheet = {}
-  /** Arguments passed to the `search-cheatsheets` command */
-  export type SearchCheatsheets = {}
 }
 
