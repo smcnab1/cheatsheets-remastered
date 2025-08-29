@@ -11,8 +11,8 @@
 <!-- PROJECT LOGO -->
 <br />
 <div align="center">
-  <a href="https://github.com/smcnab1/cheatsheets-remastered">
-    <img src="media/logo.png" alt="Logo" width="80" height="80">
+  <a href="https://raycast.com/smcnab1/cheatsheets-remastered">
+    <img src="assets/logo.png" alt="Logo" width="80" height="80">
   </a>
 
 <h3 align="center">Cheatsheets Remastered</h3>
@@ -20,23 +20,17 @@
   <p align="center">
     A remastered Cheatsheets extension with enhanced functionality, custom sheet creation, and an improved browsing experience.
     <br />
-    <a href="./ROADMAP.md"><strong>Explore the roadmap »</strong></a>
+    <a href="https://www.raycast.com/smcnab1/cheatsheets-remastered"><strong>Install the extension »</strong></a>
     <br />
     <br />
-    <a href="https://github.com/smcnab1/cheatsheets-remastered/issues/new?template=bug_report.yml">Report Bug</a>
+    <a href="https://github.com/raycast/extensions/issues/new?title=%5BCheatsheets+Remastered%5D+...&template=extension_bug_report.yml&labels=extension%2Cbug&extension-url=https%3A%2F%2Fwww.raycast.com%2Fsmcnab1%2Fcheatsheets-remastered&body=%0A%3C%21--%0APlease+update+the+title+above+to+consisely+describe+the+issue%0A--%3E%0A%0A%23%23%23+Extension%0A%0Ahttps%3A%2F%2Fraycast.com%2F%23%7Bextension_path%28extension%29%7D%0A%0A%23%23%23+Description%0A%0A%3C%21--%0APlease+provide+a+clear+and+concise+description+of+what+the+bug+is.+Include+screenshots+if+needed.+Please+test+using+the+latest+version+of+the+extension%2C+Raycast+and+API.%0A--%3E%0A%0A%23%23%23+Steps+To+Reproduce%0A%0A%3C%21--%0AYour+bug+will+get+fixed+much+faster+if+the+extension+author+can+easily+reproduce+it.+Issues+without+reproduction+steps+may+be+immediately+closed+as+not+actionable.%0A--%3E%0A%0A1.+In+this+environment...%0A2.+With+this+config...%0A3.+Run+%27...%27%0A4.+See+error...%0A%0A%23%23%23+Current+Behavior%0A%0A%23%23%23+Expected+Behavior%0A%0A">Report Bug</a>
     ·
-    <a href="https://github.com/smcnab1/cheatsheets-remastered/issues/new?template=cheatsheet_request_update.yml">Request Cheatsheet/Update</a>
-    ·
-    <a href="https://github.com/smcnab1/cheatsheets-remastered/issues/new?template=feature_request.yml">Request Feature</a>
-
+    <a href="https://github.com/raycast/extensions/issues/new?title=%5BCheatsheets+Remastered%5D+...&template=extension_feature_request.yml&labels=extension%2Cfeature%2Brequest&extension-url=https%3A%2F%2Fwww.raycast.com%2Fsmcnab1%2Fcheatsheets-remastered&body=%0A%3C%21--%0APlease+update+the+title+above+to+consisely+describe+the+issue%0A--%3E%0A%0A%23%23%23+Extension%0A%0A%23%7Brepository_url%28extension.latest_version%29%7D%0A%0A%23%23%23+Description%0A%0A%3C%21--%0ADescribe+the+feature+and+the+current+behavior%2Fstate.%0A--%3E%0A%0A%23%23%23+Who+will+benefit+from+this+feature%3F%0A%0A%23%23%23+Anything+else%3F%0A%0A%3C%21--%0ALinks%3F+References%3F+Anything+that+will+give+us+more+context%21%0ATip%3A+You+can+attach+images+or+log+files+by+clicking+this+area+to+highlight+it+and+then+dragging+files+in.%0A--%3E%0A%0A">Request Feature</a>
   </p>
 </div>
 
 <details>
   <summary>Table of Contents</summary>
-
-_Last Updated 2025-08-16_
-<!-- toc -->
 
 - [About The Project](#about-the-project)
   - [Features](#features)
@@ -49,22 +43,18 @@ _Last Updated 2025-08-16_
   - [Roadmap](#roadmap)
   - [Contributing](#contributing)
   - [License](#license)
-
-<!-- tocstop -->
   
 </details>
 
 <!-- ABOUT THE PROJECT -->
 ## About The Project
 <div align="center">
-  <a href="https://github.com/smcnab1/cheatsheets-remastered">
-    <img src="media/cheatsheets-remastered-1.png" alt="Screenshot" width="100%" height="auto">
+  <a href="https://raycast.com/smcnab1/cheatsheets-remastered">
+    <img src="metadata/cheatsheets-remastered-1.png" alt="Screenshot" width="100%" height="auto">
   </a>
   </div>
   
 **Cheatsheets Remastered** is a modern [Raycast extension](https://github.com/raycast/extensions) to quickly search, create, and manage cheatsheets. It ships with curated [DevHints](https://devhints.io/) content and lets you keep your own sheets locally. Perfect for fast recall without leaving your keyboard.
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ### Features
 
@@ -79,8 +69,6 @@ _Last Updated 2025-08-16_
 - Raycast API
 - TypeScript + React
 - Node.js / npm
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Getting started
 
@@ -106,24 +94,15 @@ Build locally:
 npm run build
 ```
 
-### Usage
+### Commands
 
 - Show Cheatsheets: browse all
-- Search Cheatsheets: search with filters and tags
 - Create Custom Cheatsheet: compose new markdown
 - Manage Custom Cheatsheets: edit, duplicate, delete, export
 - Copy Cheatsheet: quick search and copy to clipboard
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Back Matter
-
-<!-- ROADMAP -->
-### Roadmap
-
-See [ROADMAP.md](./ROADMAP.md) for planned work.
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- CONTRIBUTING -->
 
@@ -153,8 +132,6 @@ PRs should briefly state:
 
 This project is licensed under the [MIT License](LICENSE).
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
 <!-- MARKDOWN LINKS & IMAGES -->
 
 [contributors-shield]: https://img.shields.io/github/contributors/smcnab1/cheatsheets-remastered.svg?style=for-the-badge
@@ -167,4 +144,4 @@ This project is licensed under the [MIT License](LICENSE).
 [issues-url]: https://github.com/smcnab1/cheatsheets-remastered/issues
 [license-shield]: https://img.shields.io/github/license/smcnab1/cheatsheets-remastered.svg?style=for-the-badge
 [license-url]: https://github.com/smcnab1/cheatsheets-remastered/blob/main/LICENSE
-[product-screenshot]: media/cheatsheets-remastered-1.png
+[product-screenshot]: metadata/cheatsheets-remastered-1.png

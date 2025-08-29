@@ -1,0 +1,82 @@
+name: Release Checklist
+description: Use this template to track tasks for a new release cycle
+title: "Release: v"
+labels: ["release"]
+assignees: []
+
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Target version number for this release (e.g. v1.2.0)
+      placeholder: v1.2.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: development
+    attributes:
+      label: Development
+      description: Core dev tasks for this release
+      value: |
+        - [ ] Create milestone in GitHub
+        - [ ] Create release branch (`release/vX.Y.Z`)
+        - [ ] Implement scoped features (must-have first, stretch later)
+        - [ ] Run linting/formatting (`prettier --write .`)
+        - [ ] Run tests and smoke test commands locally
+        - [ ] Update internal roadmap (`ROADMAP.md`) if scope changed
+
+  - type: textarea
+    id: documentation
+    attributes:
+      label: Documentation
+      description: Update project docs and changelog
+      value: |
+        - [ ] Update `README.md` with new features (short “Next Up” block)
+        - [ ] Update `ROADMAP.md` (move milestone into ✅ Released if complete)
+        - [ ] Write `CHANGELOG.md` entry with summary + features/fixes
+        - [ ] Prepare GitHub Release description (copy from roadmap style)
+
+  - type: textarea
+    id: prerelease
+    attributes:
+      label: Pre-Release / Beta
+      description: Internal test cycle
+      value: |
+        - [ ] Push release branch to GitHub
+        - [ ] Share pre-release build (Raycast test flight / internal testers)
+        - [ ] Collect feedback and fix high-priority issues
+        - [ ] Bump version in `package.json`
+
+  - type: textarea
+    id: tag_release
+    attributes:
+      label: Tag & Release
+      description: Final tagging and publishing to GitHub
+      value: |
+        - [ ] Merge release branch → `main`
+        - [ ] Tag release (`git tag vX.Y.Z && git push --tags`)
+        - [ ] Create GitHub Release with notes (link to roadmap milestone)
+        - [ ] Confirm CI/build passes
+
+  - type: textarea
+    id: publish
+    attributes:
+      label: Publish
+      description: Push to Raycast Store and announce
+      value: |
+        - [ ] Submit updated extension to Raycast Store
+        - [ ] Verify listing shows new version & features
+        - [ ] Announce release (Slack, Twitter, README badge, etc.)
+        - [ ] Close milestone in GitHub and roll tasks forward if needed
+
+  - type: textarea
+    id: postrelease
+    attributes:
+      label: Post-Release
+      description: Prep for next cycle
+      value: |
+        - [ ] Open new milestone (e.g. `vX.Y+1.0`)
+        - [ ] Seed issues/tasks from roadmap
+        - [ ] Note any carry-overs from previous cycle

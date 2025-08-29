@@ -1,0 +1,64 @@
+name: 📝 Task
+description: Track a specific task or sub-task of a milestone
+title: "[Task]: "
+labels: ["task"]
+assignees: ["@smcnab1"]
+
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What needs to be done? Keep it short and actionable.
+      placeholder: e.g. "Add support for user-specified GitHub repositories"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: milestone
+    attributes:
+      label: Milestone
+      description: Which roadmap version does this task belong to?
+      options:
+        - 1.1.0 — User Repository Basics
+        - 1.2.0 — Caching & Search
+        - 1.3.0 — Advanced Repo Features
+        - 1.4.0 — Metadata & Tags
+        - 1.5.0 — Preferences & Controls
+        - 1.6.0 — Slugging & Collisions
+        - Backlog / Ideas
+    validations:
+      required: false
+
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: Add more context, notes, or references if needed.
+      placeholder: Steps, design notes, or technical considerations
+    validations:
+      required: false
+
+  - type: textarea
+    id: checklist
+    attributes:
+      label: Checklist
+      description: Break the task into sub-steps if useful.
+      value: |
+        - [ ]
+        - [ ]
+        - [ ]
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How urgent is this task?
+      options:
+        - Low
+        - Medium
+        - High
+    validations:
+      required: false
