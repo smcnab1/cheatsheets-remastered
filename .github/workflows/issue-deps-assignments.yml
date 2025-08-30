@@ -29,7 +29,7 @@ jobs:
         run: |
           set -euo pipefail
           if ! command -v gh >/dev/null 2>&1; then
-            type -p curl >/dev/null || sudo apt-get update
+            sudo apt-get update
             sudo apt-get install -y curl
             curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
             sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
@@ -39,16 +39,31 @@ jobs:
           fi
           sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Resolve bot login & prep cleanup helper
+      # Try the App token; if 403, fall back to GITHUB_TOKEN
+      - name: Resolve token & bot login (with fallback)
+        id: resolve-token
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          TRY_TOKEN: ${{ steps.app-token.outputs.token }}
+          FALLBACK_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          use_token="$TRY_TOKEN"
+          # Probe with /user; 403 means the App isn't installed or lacks scope on this repo
+          if ! GH_TOKEN="$use_token" gh api -H 'X-GitHub-Api-Version: 2022-11-28' /user >/tmp/user.json 2>/tmp/err.log; then
+            status=$(grep -o 'HTTP [0-9]*' /tmp/err.log || true)
+            echo "App token probe failed ($status). Falling back to GITHUB_TOKEN."
+            use_token="$FALLBACK_TOKEN"
+            echo "BOT_LOGIN=github-actions[bot]" >> "$GITHUB_ENV"
+          else
+            jq -r .login /tmp/user.json | awk '{print "BOT_LOGIN="$0}' >> "$GITHUB_ENV"
+          fi
+          echo "GH_TOKEN=$use_token" >> "$GITHUB_ENV"
+
+      - name: Prep cleanup helper
+        env:
           COMMENT_MARK: ${{ env.COMMENT_MARK }}
         run: |
           set -euo pipefail
-          BOT_LOGIN="$(gh api -H 'X-GitHub-Api-Version: 2022-11-28' /user | jq -r .login)"
-          echo "BOT_LOGIN=$BOT_LOGIN" >> "$GITHUB_ENV"
-
-          # use a literal heredoc to avoid early interpolation; expand at runtime
           cat >/tmp/cleanup_comments.sh <<'BASH_EOF'
           #!/usr/bin/env bash
           set -euo pipefail
@@ -74,7 +89,7 @@ jobs:
       - name: "Closed → assign dependants & remove 'blocked'"
         if: ${{ github.event.action == 'closed' }}
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ env.GH_TOKEN }}
           DEFAULT_ASSIGNEE: ${{ env.DEFAULT_ASSIGNEE }}
           COMMENT_MARK: ${{ env.COMMENT_MARK }}
         run: |
@@ -123,7 +138,7 @@ jobs:
       - name: "Reopened → unassign dependants & add 'blocked'"
         if: ${{ github.event.action == 'reopened' }}
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ env.GH_TOKEN }}
           COMMENT_MARK: ${{ env.COMMENT_MARK }}
         run: |
           set -euo pipefail
@@ -167,7 +182,7 @@ jobs:
       - name: "Edited → enforce blocked state on this issue"
         if: ${{ github.event.action == 'edited' }}
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ env.GH_TOKEN }}
           COMMENT_MARK: ${{ env.COMMENT_MARK }}
         run: |
           set -euo pipefail
@@ -208,6 +223,7 @@ jobs:
         run: |
           {
             echo "### Issue dependency assignment (Nexoroid)"
+            echo "- Token used as: ${BOT_LOGIN}"
             echo "- Action: ${{ github.event.action }}"
             echo "- Closed dependants processed: ${CLOSED_COUNT:-0}"
             echo "- Reopened dependants processed: ${REOPENED_COUNT:-0}"
