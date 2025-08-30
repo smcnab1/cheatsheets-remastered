@@ -34,18 +34,15 @@ jobs:
           COMMENT_MARK: ${{ env.COMMENT_MARK }}
         run: |
           set -euo pipefail
-          # Resolve the bot account login for this app token (e.g. nexoroid[bot])
           BOT_LOGIN="$(gh api -H 'X-GitHub-Api-Version: 2022-11-28' /user | jq -r .login)"
           echo "BOT_LOGIN=$BOT_LOGIN" >> "$GITHUB_ENV"
 
-          # Write a small helper to delete previous marked comments by this bot
           cat > /tmp/cleanup_comments.sh << 'EOF'
           #!/usr/bin/env bash
           set -euo pipefail
           issue_num="$1"
           owner="${GITHUB_REPOSITORY%/*}"
           repo="${GITHUB_REPOSITORY#*/}"
-          # List up to 100 latest comments; delete ones authored by BOT_LOGIN and containing COMMENT_MARK
           gh api -H 'X-GitHub-Api-Version: 2022-11-28' \
             "/repos/$owner/$repo/issues/$issue_num/comments?per_page=100" \
             | jq -c '.[]' | while read -r c; do
@@ -62,7 +59,7 @@ jobs:
           chmod +x /tmp/cleanup_comments.sh
 
       # ── A) Closed → assign dependants & remove 'blocked' ───────────────────────
-      - name: Closed → assign dependants & remove 'blocked'
+      - name: "Closed → assign dependants & remove 'blocked'"
         if: ${{ github.event.action == 'closed' }}
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -98,7 +95,6 @@ jobs:
               gh api -X POST -H 'X-GitHub-Api-Version: 2022-11-28' \
                 "/repos/$owner/$repo/issues/$num/assignees" -f "assignees[]=$target"
 
-              # 🧹 Delete older Nexoroid comments, then post a fresh one
               /tmp/cleanup_comments.sh "$num"
               gh api -X POST -H 'X-GitHub-Api-Version: 2022-11-28' \
                 "/repos/$owner/$repo/issues/$num/comments" \
@@ -106,13 +102,12 @@ jobs:
 Unblocked by #$src (now closed). Assigned to @$target. ✅"
             fi
 
-            # Remove 'blocked' label if present
             gh api -X DELETE -H 'X-GitHub-Api-Version: 2022-11-28' \
               "/repos/$owner/$repo/issues/$num/labels/blocked" || true
           done < /tmp/dependants.json
 
       # ── B) Reopened → unassign dependants & add 'blocked' ──────────────────────
-      - name: Reopened → unassign dependants & add 'blocked'
+      - name: "Reopened → unassign dependants & add 'blocked'"
         if: ${{ github.event.action == 'reopened' }}
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -137,7 +132,6 @@ Unblocked by #$src (now closed). Assigned to @$target. ✅"
 
             issue_json="$(gh api -H 'X-GitHub-Api-Version: 2022-11-28' "/repos/$owner/$repo/issues/$num")"
 
-            # Unassign everyone (nil-safe)
             jq -r '.assignees[]?.login // empty' <<< "$issue_json" | while read -r u; do
               [ -n "${u:-}" ] || continue
               echo "Unassigning @$u from #$num"
@@ -145,11 +139,9 @@ Unblocked by #$src (now closed). Assigned to @$target. ✅"
                 "/repos/$owner/$repo/issues/$num/assignees" -f "assignees[]=$u" || true
             done
 
-            # Add 'blocked' label (idempotent)
             gh api -X POST -H 'X-GitHub-Api-Version: 2022-11-28' \
               "/repos/$owner/$repo/issues/$num/labels" -f "labels[]=blocked" || true
 
-            # 🧹 Delete older Nexoroid comments, then post a fresh one
             /tmp/cleanup_comments.sh "$num"
             gh api -X POST -H 'X-GitHub-Api-Version: 2022-11-28' \
               "/repos/$owner/$repo/issues/$num/comments" \
@@ -179,7 +171,6 @@ Re-blocked by #$src (reopened). All assignees removed and label applied. ⛔"
           if [ "$EDITED_OPEN_BLOCKERS" -gt 0 ]; then
             issue_json="$(gh api -H 'X-GitHub-Api-Version: 2022-11-28' "/repos/$owner/$repo/issues/$num")"
 
-            # Unassign everyone
             jq -r '.assignees[]?.login // empty' <<< "$issue_json" | while read -r u; do
               [ -n "${u:-}" ] || continue
               echo "Unassigning @$u from #$num"
@@ -187,11 +178,9 @@ Re-blocked by #$src (reopened). All assignees removed and label applied. ⛔"
                 "/repos/$owner/$repo/issues/$num/assignees" -f "assignees[]=$u" || true
             done
 
-            # Add 'blocked' label (idempotent)
             gh api -X POST -H 'X-GitHub-Api-Version: 2022-11-28' \
               "/repos/$owner/$repo/issues/$num/labels" -f "labels[]=blocked" || true
 
-            # 🧹 Delete older Nexoroid comments, then post a fresh one
             /tmp/cleanup_comments.sh "$num"
             gh api -X POST -H 'X-GitHub-Api-Version: 2022-11-28' \
               "/repos/$owner/$repo/issues/$num/comments" \
