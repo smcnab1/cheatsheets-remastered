@@ -1,16 +1,9 @@
+# .github/workflows/auto-assign-when-unblocked.yml
 name: Auto-assign when unblocked
 
 on:
   issues:
-    types:
-      # Cover link edits, label changes, reopen, and when a blocker closes
-      - opened
-      - edited
-      - reopened
-      - labeled
-      - unlabeled
-      - closed
-  # Re-evaluate when a PR closes, in case blockers are PRs
+    types: [opened, edited, reopened, labeled, unlabeled, closed]
   pull_request:
     types: [closed]
 
@@ -26,8 +19,6 @@ jobs:
   assign-when-unblocked:
     name: Assign when all blockers are resolved
     runs-on: ubuntu-latest
-
-    # Only run for issues in this repository (skip PR events except to re-check blocked issues they were blocking)
     if: |
       (github.event_name == 'issues') ||
       (github.event_name == 'pull_request' && github.event.action == 'closed')
@@ -39,33 +30,16 @@ jobs:
         with:
           script: |
             const isIssueEvent = context.eventName === 'issues';
-            const repo = context.repo;
             const targets = [];
 
             if (isIssueEvent) {
-              // Evaluate the current issue
               targets.push({ number: context.payload.issue.number });
             } else {
-              // A PR closed: find issues that PR "blocks" and re-evaluate those
-              // (We’ll look for linked issues with "BLOCKS" from this PR)
               const prNodeId = context.payload.pull_request.node_id;
               const q = `
                 query ($nodeId: ID!) {
                   node(id: $nodeId) {
                     ... on PullRequest {
-                      id
-                      number
-                      timelineItems(first: 100, itemTypes: [CONNECTED_EVENT]) {
-                        nodes {
-                          ... on ConnectedEvent {
-                            subject {
-                              __typename
-                              ... on Issue { number }
-                            }
-                          }
-                        }
-                      }
-                      # Use GraphQL linkedIssues API (blocks)
                       linkedIssues(first: 100, relationship: BLOCKS) {
                         nodes { number }
                       }
@@ -74,14 +48,8 @@ jobs:
                 }
               `;
               const data = await github.graphql(q, { nodeId: prNodeId });
-              const nodes = new Set();
-              // timelineItems may not include link types; prefer linkedIssues
-              if (data.node?.linkedIssues?.nodes) {
-                for (const n of data.node.linkedIssues.nodes) {
-                  if (n?.number) nodes.add(n.number);
-                }
-              }
-              targets.push(...[...nodes].map(n => ({ number: n })));
+              const nodes = new Set((data.node?.linkedIssues?.nodes || []).map(n => n.number).filter(Boolean));
+              for (const n of nodes) targets.push({ number: n });
             }
 
             core.setOutput('list', JSON.stringify(targets));
@@ -89,21 +57,24 @@ jobs:
       - name: Assign any now-unblocked issues
         uses: actions/github-script@v7
         env:
-          # Configure who to assign:
-          # Prefer a repo/org Variable named DEFAULT_ASSIGNEE (Settings → Variables → Repository/Organisation),
-          # otherwise fall back to the repo owner.
+          LIST: ${{ steps.targets.outputs.list }}   # <-- pass prior step output here
           DEFAULT_ASSIGNEE: ${{ vars.DEFAULT_ASSIGNEE }}
-          # Optional: only act if the issue currently has this label (e.g., "blocked").
-          # Leave empty to ignore label gating.
           BLOCKED_LABEL: ${{ vars.BLOCKED_LABEL }}
-          # Optional: label to remove when assigning (e.g., "blocked")
           REMOVE_LABEL_ON_ASSIGN: ${{ vars.REMOVE_LABEL_ON_ASSIGN }}
         with:
           script: |
             const repo = context.repo;
-            const targets = JSON.parse(core.getInput('list', { required: true }) || '[]');
+            const raw = process.env.LIST || '[]';
+            let targets;
+            try { targets = JSON.parse(raw); } catch { targets = []; }
 
-            // Helper: fetch linked "blocked by" issues for a given issue
+            if (!Array.isArray(targets) || targets.length === 0) {
+              core.info('No target issues to evaluate.');
+              await core.summary.addHeading('Auto-assign when unblocked', 2)
+                .addRaw('• No targets to evaluate for this event.\n').write();
+              return;
+            }
+
             async function getOpenBlockers(issueNumber) {
               const q = `
                 query ($owner:String!, $repo:String!, $number:Int!) {
@@ -113,7 +84,7 @@ jobs:
                       state
                       labels(first: 50) { nodes { name } }
                       assignees(first: 10) { nodes { login } }
-                      author { __typename login }
+                      author { login }
                       linkedIssues(first: 100, relationship: BLOCKED_BY) {
                         nodes { number state }
                       }
@@ -132,33 +103,20 @@ jobs:
               const { issue, openBlockers } = await getOpenBlockers(issueNumber);
               if (!issue) return;
 
-              const blockedLabel = process.env.BLOCKED_LABEL?.trim();
-              const requiresBlockedLabel = !!blockedLabel;
+              const blockedLabel = (process.env.BLOCKED_LABEL || '').trim();
               const hasBlockedLabel = blockedLabel
                 ? issue.labels.nodes.some(l => l.name.toLowerCase() === blockedLabel.toLowerCase())
-                : true; // no gating
+                : true;
 
-              // Only proceed if no open blockers remain and (optionally) the issue is labelled as blocked
               if (openBlockers.length === 0 && hasBlockedLabel) {
-                // Decide assignee
                 const configured = (process.env.DEFAULT_ASSIGNEE || '').trim();
-                const candidateAssignees = [];
-                if (configured) {
-                  // allow comma-separated list
-                  for (const a of configured.split(',').map(s => s.trim()).filter(Boolean)) {
-                    candidateAssignees.push(a);
-                  }
-                } else if (issue.author?.login) {
-                  // Fallback: assign back to author (only works if they have permission to be assigned)
-                  candidateAssignees.push(issue.author.login);
-                } else {
-                  // Final fallback: repo owner
-                  candidateAssignees.push(repo.owner);
-                }
+                const candidateAssignees = configured
+                  ? configured.split(',').map(s => s.trim()).filter(Boolean)
+                  : [issue.author?.login || repo.owner];
 
-                // Skip if already assigned to any of the candidates
                 const already = issue.assignees.nodes.map(a => a.login.toLowerCase());
-                const toAssign = candidateAssignees.filter(a => !already.includes(a.toLowerCase()));
+                const toAssign = candidateAssignees.filter(a => !!a && !already.includes(a.toLowerCase()));
+
                 if (toAssign.length > 0) {
                   await github.rest.issues.addAssignees({
                     owner: repo.owner,
@@ -168,27 +126,27 @@ jobs:
                   });
                 }
 
-                // Optionally remove a "blocked" label upon assignment
                 const removeLabel = (process.env.REMOVE_LABEL_ON_ASSIGN || '').trim();
-                if (removeLabel) {
-                  const hasRemove = issue.labels.nodes.some(l => l.name.toLowerCase() === removeLabel.toLowerCase());
-                  if (hasRemove) {
-                    try {
-                      await github.rest.issues.removeLabel({
-                        owner: repo.owner,
-                        repo: repo.repo,
-                        issue_number: issue.number,
-                        name: removeLabel
-                      });
-                    } catch (e) {
-                      core.info(`Could not remove label '${removeLabel}': ${e.message}`);
-                    }
+                if (removeLabel && issue.labels.nodes.some(l => l.name.toLowerCase() === removeLabel.toLowerCase())) {
+                  try {
+                    await github.rest.issues.removeLabel({
+                      owner: repo.owner,
+                      repo: repo.repo,
+                      issue_number: issue.number,
+                      name: removeLabel
+                    });
+                  } catch (e) {
+                    core.info(`Could not remove label '${removeLabel}': ${e.message}`);
                   }
                 }
 
-                core.summary
-                  .addHeading('Auto-assign when unblocked', 2)
+                await core.summary.addHeading('Auto-assign when unblocked', 2)
                   .addRaw(`• Issue #${issue.number} has no remaining blockers. Assigned to: ${JSON.stringify(candidateAssignees)}.\n`)
+                  .write();
+
+              } else {
+                await core.summary.addHeading('Auto-assign when unblocked', 2)
+                  .addRaw(`• Issue #${issue.number} still has ${openBlockers.length} open blocker(s) or does not meet label gating.\n`)
                   .write();
               }
             }
