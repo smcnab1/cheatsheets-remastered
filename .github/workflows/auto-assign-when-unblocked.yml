@@ -38,7 +38,6 @@ jobs:
               if (!subject) return undefined;
               if (typeof subject.number === 'number') return subject.number;
               const url = subject.html_url || subject.url || '';
-              // URLs look like .../repos/{owner}/{repo}/issues/{number}
               const m = url.match(/\/issues\/(\d+)(?:$|[/?#])/);
               return m ? parseInt(m[1], 10) : undefined;
             }
@@ -46,31 +45,17 @@ jobs:
             async function collectDependants(number) {
               const iterator = github.paginate.iterator(
                 github.rest.issues.listEventsForTimeline,
-                {
-                  owner, repo, issue_number: number, per_page: 100,
-                  mediaType: { previews: ['mockingbird'] }
-                }
+                { owner, repo, issue_number: number, per_page: 100, mediaType: { previews: ['mockingbird'] } }
               );
               for await (const { data } of iterator) {
                 for (const ev of data) {
                   if (ev.event !== 'connected') continue;
-
-                  // Prefer direction if present
                   const reason = ev.reason || ev.connection_type || '';
                   const n = extractIssueNumber(ev.subject);
                   if (!n) continue;
 
-                  // If GitHub supplies direction, use only "blocks"
-                  if (reason === 'blocks') {
-                    targets.add(n);
-                    continue;
-                  }
-
-                  // Fallback: If direction missing, still collect. We'll validate later.
-                  // (Safer to include and let the second step check real blockers)
-                  if (!reason) {
-                    targets.add(n);
-                  }
+                  // Prefer explicit "blocks"; if missing, include and validate later.
+                  if (reason === 'blocks' || reason === '') targets.add(n);
                 }
               }
             }
@@ -81,19 +66,18 @@ jobs:
               const issueNum = context.payload.issue.number;
 
               if (context.payload.action === 'closed') {
-                // Closed blocker: gather the issues it was blocking
+                // Closed blocker: re-check issues it was blocking
                 await collectDependants(issueNum);
               }
 
-              // Also re-check the edited/labelled/reopened issue itself
+              // Also re-check the issue itself on edits/labels, etc.
               if (['opened','edited','reopened','labeled','unlabeled','transferred'].includes(context.payload.action)) {
                 targets.add(issueNum);
               }
             }
 
-            const list = [...targets];
-            core.summary.addHeading('Auto-assign when unblocked — collector', 3)
-              .addRaw(`Targets collected: ${JSON.stringify(list)}\n`).write();
+            const list = Array.from(targets);
+            core.info(`Targets collected: ${JSON.stringify(list)}`);
             core.setOutput('list', JSON.stringify(list));
 
       - name: Assign any now-unblocked issues
@@ -101,27 +85,98 @@ jobs:
         uses: actions/github-script@v7
         env:
           TARGETS: ${{ steps.targets.outputs.list }}
-          DEFAULT_ASSIGNEE: ${{ vars.DEFAULT_ASSIGNEE }}         # e.g. "smcnab1" or "nexoroid,smcnab1"
-          BLOCKED_LABEL: ${{ vars.BLOCKED_LABEL }}               # optional
-          REMOVE_LABEL_ON_ASSIGN: ${{ vars.REMOVE_LABEL_ON_ASSIGN }} # optional
+          DEFAULT_ASSIGNEE: ${{ vars.DEFAULT_ASSIGNEE }}           # e.g. "smcnab1" or "nexoroid,smcnab1"
+          BLOCKED_LABEL: ${{ vars.BLOCKED_LABEL }}                 # optional gating label
+          REMOVE_LABEL_ON_ASSIGN: ${{ vars.REMOVE_LABEL_ON_ASSIGN }} # optional tidy-up
         with:
           script: |
             const { owner, repo } = context.repo;
+
+            function extractIssueNumber(subject) {
+              if (!subject) return undefined;
+              if (typeof subject.number === 'number') return subject.number;
+              const url = subject.html_url || subject.url || '';
+              const m = url.match(/\/issues\/(\d+)(?:$|[/?#])/);
+              return m ? parseInt(m[1], 10) : undefined;
+            }
 
             async function getOpenBlockers(issueNumber) {
               const openBlockers = new Set();
               const iterator = github.paginate.iterator(
                 github.rest.issues.listEventsForTimeline,
-                {
-                  owner, repo, issue_number: issueNumber, per_page: 100,
-                  mediaType: { previews: ['mockingbird'] }
-                }
+                { owner, repo, issue_number: issueNumber, per_page: 100, mediaType: { previews: ['mockingbird'] } }
               );
               for await (const { data } of iterator) {
                 for (const ev of data) {
-                  if (ev.event === 'connected' && (ev.reason === 'blocked_by' || ev.connection_type === 'blocked_by')) {
-                    // Extract blocker number robustly
-                    const subject = ev.subject || {};
-                    const num = typeof subject.number === 'number'
-                      ? subject.number
-                      : ((subject.html_url || sub_
+                  if (ev.event !== 'connected') continue;
+                  const reason = ev.reason || ev.connection_type || '';
+                  if (!(reason === 'blocked_by' || reason === '')) continue;
+                  const n = extractIssueNumber(ev.subject);
+                  if (n) openBlockers.add(n);
+                }
+              }
+              const stillOpen = [];
+              for (const n of openBlockers) {
+                try {
+                  const r = await github.rest.issues.get({ owner, repo, issue_number: n });
+                  if (r.data.state !== 'closed') stillOpen.push(n);
+                } catch {
+                  stillOpen.push(n); // conservative
+                }
+              }
+              return stillOpen;
+            }
+
+            async function fetchIssue(issueNumber) {
+              const r = await github.rest.issues.get({ owner, repo, issue_number: issueNumber });
+              return r.data;
+            }
+
+            async function assignIfUnblocked(issueNumber) {
+              const issue = await fetchIssue(issueNumber);
+              if (!issue || issue.pull_request) return;  // skip PRs
+              if (issue.state === 'closed') return;      // don't assign closed issues
+
+              const blockedLabel = (process.env.BLOCKED_LABEL || '').trim().toLowerCase();
+              const hasBlockedLabel = blockedLabel
+                ? (issue.labels || []).some(l => (typeof l === 'string' ? l : l.name).toLowerCase() === blockedLabel)
+                : true;
+
+              const openBlockers = await getOpenBlockers(issue.number);
+
+              if (openBlockers.length === 0 && hasBlockedLabel) {
+                const configured = (process.env.DEFAULT_ASSIGNEE || '').trim();
+                const candidates = configured
+                  ? configured.split(',').map(s => s.trim()).filter(Boolean)
+                  : [issue.user?.login || owner];
+
+                const already = (issue.assignees || []).map(a => a.login.toLowerCase());
+                const toAssign = candidates.filter(c => !already.includes(c.toLowerCase()));
+
+                if (toAssign.length > 0) {
+                  await github.rest.issues.addAssignees({ owner, repo, issue_number: issue.number, assignees: toAssign });
+                  core.info(`Assigned #${issue.number} → ${JSON.stringify(toAssign)}`);
+                } else {
+                  core.info(`No new assignees needed for #${issue.number}`);
+                }
+
+                const removeLabel = (process.env.REMOVE_LABEL_ON_ASSIGN || '').trim().toLowerCase();
+                if (removeLabel) {
+                  const hasLabel = (issue.labels || []).some(l => (typeof l === 'string' ? l : l.name).toLowerCase() === removeLabel);
+                  if (hasLabel) {
+                    try {
+                      await github.rest.issues.removeLabel({ owner, repo, issue_number: issue.number, name: removeLabel });
+                    } catch (e) {
+                      core.info(`Could not remove label '${removeLabel}': ${e.message}`);
+                    }
+                  }
+                }
+              } else {
+                core.info(`Skipping #${issue.number} — still has ${openBlockers.length} open blocker(s) or failed label gate.`);
+              }
+            }
+
+            const targets = JSON.parse(process.env.TARGETS || '[]');
+            for (const n of targets) {
+              await assignIfUnblocked(n);
+            }
