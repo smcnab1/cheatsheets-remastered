@@ -39,25 +39,32 @@ jobs:
           fi
           sudo apt-get update && sudo apt-get install -y jq
 
-      # Try the App token; if 403, fall back to GITHUB_TOKEN
-      - name: Resolve token & bot login (with fallback)
-        id: resolve-token
+      - name: Export GH_TOKEN (App) & verify access
         env:
-          TRY_TOKEN: ${{ steps.app-token.outputs.token }}
-          FALLBACK_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
-          use_token="$TRY_TOKEN"
-          # Probe with /user; 403 means the App isn't installed or lacks scope on this repo
-          if ! GH_TOKEN="$use_token" gh api -H 'X-GitHub-Api-Version: 2022-11-28' /user >/tmp/user.json 2>/tmp/err.log; then
-            status=$(grep -o 'HTTP [0-9]*' /tmp/err.log || true)
-            echo "App token probe failed ($status). Falling back to GITHUB_TOKEN."
-            use_token="$FALLBACK_TOKEN"
-            echo "BOT_LOGIN=github-actions[bot]" >> "$GITHUB_ENV"
-          else
-            jq -r .login /tmp/user.json | awk '{print "BOT_LOGIN="$0}' >> "$GITHUB_ENV"
+          # Make the App installation token the only token used
+          echo "GH_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
+          # Verify the token can access this repo by fetching the issue itself
+          owner="${GITHUB_REPOSITORY%/*}"
+          repo="${GITHUB_REPOSITORY#*/}"
+          num="${{ github.event.issue.number }}"
+          if ! GH_TOKEN="$TOKEN" gh api -H 'X-GitHub-Api-Version: 2022-11-28' "/repos/$owner/$repo/issues/$num" >/dev/null 2>&1; then
+            echo "The Nexoroid App token cannot access $owner/$repo. Ensure the App is installed on this repo/org with 'Issues: Read & write'." >&2
+            exit 1
           fi
-          echo "GH_TOKEN=$use_token" >> "$GITHUB_ENV"
+
+          # Resolve bot login (for cleanup)
+          if GH_TOKEN="$TOKEN" gh api -H 'X-GitHub-Api-Version: 2022-11-28' /user >/tmp/user.json 2>/dev/null; then
+            BOT_LOGIN="$(jq -r .login /tmp/user.json)"
+          else
+            # Best-effort fallback to app-slug[bot] if /user isn’t available for this token
+            # (change the slug if your bot’s login differs)
+            BOT_LOGIN="nexoroid[bot]"
+          fi
+          echo "BOT_LOGIN=$BOT_LOGIN" >> "$GITHUB_ENV"
 
       - name: Prep cleanup helper
         env:
@@ -223,7 +230,7 @@ jobs:
         run: |
           {
             echo "### Issue dependency assignment (Nexoroid)"
-            echo "- Token used as: ${BOT_LOGIN}"
+            echo "- Acting as: ${BOT_LOGIN}"
             echo "- Action: ${{ github.event.action }}"
             echo "- Closed dependants processed: ${CLOSED_COUNT:-0}"
             echo "- Reopened dependants processed: ${REOPENED_COUNT:-0}"
