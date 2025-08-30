@@ -11,7 +11,7 @@ permissions:
 
 env:
   # Optional fallback if an unblocked issue has no assignees
-  DEFAULT_ASSIGNEE: ""
+  DEFAULT_ASSIGNEE: "smcnab1"
 
 jobs:
   handle-issue-deps:
