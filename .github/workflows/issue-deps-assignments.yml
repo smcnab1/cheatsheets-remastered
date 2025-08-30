@@ -28,7 +28,7 @@ jobs:
       - name: Install tools
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Resolve bot login & prep cleanup helper
+      - name: "Resolve bot login & prep cleanup helper"
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           COMMENT_MARK: ${{ env.COMMENT_MARK }}
