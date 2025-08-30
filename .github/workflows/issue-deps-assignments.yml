@@ -25,10 +25,21 @@ jobs:
           app-id: ${{ secrets.NEXOROID_APP_ID }}
           private-key: ${{ secrets.NEXOROID_APP_PRIVATE_KEY }}
 
-      - name: Install tools
-        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Install tools (gh, jq)
+        run: |
+          set -euo pipefail
+          if ! command -v gh >/dev/null 2>&1; then
+            type -p curl >/dev/null || sudo apt-get update
+            sudo apt-get install -y curl
+            curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+            sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list >/dev/null
+            sudo apt-get update
+            sudo apt-get install -y gh
+          fi
+          sudo apt-get update && sudo apt-get install -y jq
 
-      - name: "Resolve bot login & prep cleanup helper"
+      - name: Resolve bot login & prep cleanup helper
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           COMMENT_MARK: ${{ env.COMMENT_MARK }}
@@ -37,7 +48,8 @@ jobs:
           BOT_LOGIN="$(gh api -H 'X-GitHub-Api-Version: 2022-11-28' /user | jq -r .login)"
           echo "BOT_LOGIN=$BOT_LOGIN" >> "$GITHUB_ENV"
 
-          cat > /tmp/cleanup_comments.sh << 'EOF'
+          # use a literal heredoc to avoid early interpolation; expand at runtime
+          cat >/tmp/cleanup_comments.sh <<'BASH_EOF'
           #!/usr/bin/env bash
           set -euo pipefail
           issue_num="$1"
@@ -45,7 +57,7 @@ jobs:
           repo="${GITHUB_REPOSITORY#*/}"
           gh api -H 'X-GitHub-Api-Version: 2022-11-28' \
             "/repos/$owner/$repo/issues/$issue_num/comments?per_page=100" \
-            | jq -c '.[]' | while read -r c; do
+          | jq -c '.[]' | while read -r c; do
               author=$(jq -r '.user.login' <<<"$c")
               id=$(jq -r '.id' <<<"$c")
               body=$(jq -r '.body' <<<"$c")
@@ -55,7 +67,7 @@ jobs:
                   "/repos/$owner/$repo/issues/comments/$id" || true
               fi
             done
-          EOF
+          BASH_EOF
           chmod +x /tmp/cleanup_comments.sh
 
       # ── A) Closed → assign dependants & remove 'blocked' ───────────────────────
@@ -79,6 +91,7 @@ jobs:
           echo "CLOSED_COUNT=$CLOSED_COUNT" >> "$GITHUB_ENV"
 
           while IFS= read -r row; do
+            [ -n "${row:-}" ] || continue
             num="$(jq -r '.number' <<< "$row")"
             state="$(jq -r '.state'  <<< "$row")"
             [ "$state" = "open" ] || { echo "#$num not open; skip"; continue; }
@@ -126,6 +139,7 @@ Unblocked by #$src (now closed). Assigned to @$target. ✅"
           echo "REOPENED_COUNT=$REOPENED_COUNT" >> "$GITHUB_ENV"
 
           while IFS= read -r row; do
+            [ -n "${row:-}" ] || continue
             num="$(jq -r '.number' <<< "$row")"
             state="$(jq -r '.state'  <<< "$row")"
             [ "$state" = "open" ] || { echo "#$num not open; skip"; continue; }
@@ -150,7 +164,7 @@ Re-blocked by #$src (reopened). All assignees removed and label applied. ⛔"
           done < /tmp/reblocked.json
 
       # ── C) Edited → if now blocked, unassign itself & add 'blocked' ────────────
-      - name: Edited → enforce blocked state on this issue
+      - name: "Edited → enforce blocked state on this issue"
         if: ${{ github.event.action == 'edited' }}
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -165,7 +179,7 @@ Re-blocked by #$src (reopened). All assignees removed and label applied. ⛔"
             "/repos/$owner/$repo/issues/$num/dependencies/blocked_by" \
             | jq -c '[.[] | select(.state=="open")]' > /tmp/open_blockers.json || echo "[]" > /tmp/open_blockers.json
 
-          EDITED_OPEN_BLOCKERS="$(jq 'length' /tmp/open_blockers.json)"
+          EDITED_OPEN_BLOCKERS="$(jq 'length' /tmp/open_blockers.json || echo 0)"
           echo "EDITED_OPEN_BLOCKERS=$EDITED_OPEN_BLOCKERS" >> "$GITHUB_ENV"
 
           if [ "$EDITED_OPEN_BLOCKERS" -gt 0 ]; then
