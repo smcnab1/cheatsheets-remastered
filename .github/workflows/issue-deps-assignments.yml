@@ -1,0 +1,200 @@
+# .github/workflows/issue-deps-assignments.yml
+name: Issue dependency assignment (Nexoroid)
+
+on:
+  issues:
+    types: [closed, reopened, edited]
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  # Optional fallback if an unblocked issue has no assignees
+  DEFAULT_ASSIGNEE: ""
+
+jobs:
+  handle-issue-deps:
+    if: github.event.issue.pull_request == null
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Create Nexoroid installation token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.NEXOROID_APP_ID }}
+          private-key: ${{ secrets.NEXOROID_APP_PRIVATE_KEY }}
+
+      - name: Tooling
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      # --- CASE A: When a blocker closes -> assign dependants, remove 'blocked' ---
+      - name: Find issues this one was blocking (on close)
+        id: closing-blocked
+        if: github.event.action == 'closed'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          owner="${GITHUB_REPOSITORY%/*}"
+          repo="${GITHUB_REPOSITORY#*/}"
+          issue_number="${{ github.event.issue.number }}"
+
+          gh api -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "/repos/$owner/$repo/issues/$issue_number/dependencies/blocking" \
+            | jq -c '.[]' > /tmp/blocked.json || true
+          echo "count=$(wc -l < /tmp/blocked.json || true)" >> "$GITHUB_OUTPUT"
+
+      - name: Assign unblocked issues & remove 'blocked'
+        if: github.event.action == 'closed' && steps.closing-blocked.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          DEFAULT_ASSIGNEE: ${{ env.DEFAULT_ASSIGNEE }}
+        run: |
+          owner="${GITHUB_REPOSITORY%/*}"
+          repo="${GITHUB_REPOSITORY#*/}"
+          source_issue="${{ github.event.issue.number }}"
+
+          while IFS= read -r row; do
+            num=$(jq -r '.number' <<< "$row")
+            state=$(jq -r '.state'   <<< "$row")
+
+            # only touch open issues
+            [ "$state" = "open" ] || { echo "#$num not open; skip"; continue; }
+
+            issue_json="$(gh api -H 'X-GitHub-Api-Version: 2022-11-28' "/repos/$owner/$repo/issues/$num")"
+            assignee_count=$(jq '.assignees | length' <<< "$issue_json")
+            author=$(jq -r '.user.login' <<< "$issue_json")
+
+            if [ "$assignee_count" -gt 0 ]; then
+              echo "#$num already has assignees; skip assigning"
+            else
+              target="${DEFAULT_ASSIGNEE:-$author}"
+              echo "Assigning @$target to #$num"
+              gh api -X POST -H 'X-GitHub-Api-Version: 2022-11-28' \
+                "/repos/$owner/$repo/issues/$num/assignees" \
+                -f "assignees[]=$target"
+
+              gh api -X POST -H 'X-GitHub-Api-Version: 2022-11-28' \
+                "/repos/$owner/$repo/issues/$num/comments" \
+                -f body="Unblocked by #$source_issue (now closed). Assigned to @$target to keep things moving. ✅"
+            fi
+
+            # Remove 'blocked' label if present
+            gh api -X DELETE -H 'X-GitHub-Api-Version: 2022-11-28' \
+              "/repos/$owner/$repo/issues/$num/labels/blocked" || true
+          done < /tmp/blocked.json
+
+      # --- CASE B: When a blocker reopens -> unassign dependants, add 'blocked' ---
+      - name: Find issues this one is blocking (on reopen)
+        id: reopening-blocked
+        if: github.event.action == 'reopened'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          owner="${GITHUB_REPOSITORY%/*}"
+          repo="${GITHUB_REPOSITORY#*/}"
+          issue_number="${{ github.event.issue.number }}"
+
+          gh api -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "/repos/$owner/$repo/issues/$issue_number/dependencies/blocking" \
+            | jq -c '.[]' > /tmp/reblocked.json || true
+          echo "count=$(wc -l < /tmp/reblocked.json || true)" >> "$GITHUB_OUTPUT"
+
+      - name: Re-block dependants: unassign & add 'blocked'
+        if: github.event.action == 'reopened' && steps.reopening-blocked.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          owner="${GITHUB_REPOSITORY%/*}"
+          repo="${GITHUB_REPOSITORY#*/}"
+          source_issue="${{ github.event.issue.number }}"
+
+          while IFS= read -r row; do
+            num=$(jq -r '.number' <<< "$row")
+            state=$(jq -r '.state'   <<< "$row")
+            [ "$state" = "open" ] || { echo "#$num not open; skip"; continue; }
+
+            issue_json="$(gh api -H 'X-GitHub-Api-Version: 2022-11-28' "/repos/$owner/$repo/issues/$num")"
+
+            # Unassign everyone currently assigned
+            jq -r '.assignees[].login' <<< "$issue_json" | while read -r u; do
+              [ -n "$u" ] || continue
+              echo "Unassigning @$u from #$num"
+              gh api -X DELETE -H 'X-GitHub-Api-Version: 2022-11-28' \
+                "/repos/$owner/$repo/issues/$num/assignees" \
+                -f "assignees[]=$u" || true
+            done
+
+            # Add 'blocked' label (idempotent)
+            gh api -X POST -H 'X-GitHub-Api-Version: 2022-11-28' \
+              "/repos/$owner/$repo/issues/$num/labels" \
+              -f "labels[]=blocked" || true
+
+            gh api -X POST -H 'X-GitHub-Api-Version: 2022-11-28' \
+              "/repos/$owner/$repo/issues/$num/comments" \
+              -f body="Re-blocked by #$source_issue (reopened). All assignees removed and \`blocked\` label applied. ⛔"
+          done < /tmp/reblocked.json
+
+      # --- CASE C: When any issue is edited -> if it now HAS open blockers, unassign & add 'blocked' ---
+      - name: Check if this issue has open blockers (on edit)
+        id: edited-blockers
+        if: github.event.action == 'edited'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          owner="${GITHUB_REPOSITORY%/*}"
+          repo="${GITHUB_REPOSITORY#*/}"
+          issue_number="${{ github.event.issue.number }}"
+
+          # List blockers of THIS issue
+          gh api -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "/repos/$owner/$repo/issues/$issue_number/dependencies/blocked_by" \
+            | jq -c '[.[] | select(.state=="open")]' > /tmp/open_blockers.json || echo "[]">/tmp/open_blockers.json
+
+          count="$(jq 'length' /tmp/open_blockers.json)"
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce blocked state on this issue (unassign & add label)
+        if: github.event.action == 'edited' && steps.edited-blockers.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          owner="${GITHUB_REPOSITORY%/*}"
+          repo="${GITHUB_REPOSITORY#*/}"
+          num="${{ github.event.issue.number }}"
+
+          issue_json="$(gh api -H 'X-GitHub-Api-Version: 2022-11-28' "/repos/$owner/$repo/issues/$num")"
+
+          # Unassign everybody
+          jq -r '.assignees[].login' <<< "$issue_json" | while read -r u; do
+            [ -n "$u" ] || continue
+            echo "Unassigning @$u from #$num"
+            gh api -X DELETE -H 'X-GitHub-Api-Version: 2022-11-28' \
+              "/repos/$owner/$repo/issues/$num/assignees" \
+              -f "assignees[]=$u" || true
+          done
+
+          # Add 'blocked' label (idempotent)
+          gh api -X POST -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "/repos/$owner/$repo/issues/$num/labels" \
+            -f "labels[]=blocked" || true
+
+          gh api -X POST -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "/repos/$owner/$repo/issues/$num/comments" \
+            -f body="This issue is currently **blocked** by at least one open dependency. Assignees removed and \`blocked\` label applied. ⛔"
+
+      - name: Job summary
+        run: |
+          {
+            echo "### Issue dependency assignment (Nexoroid)"
+            echo "- Event: **${{ github.event.action }}**"
+            echo "- Issue: #${{ github.event.issue.number }}"
+            if [ "${{ github.event.action }}" = "closed" ]; then
+              echo "- Unblocked count: ${{ steps.closing-blocked.outputs.count || '0' }}"
+            elif [ "${{ github.event.action }}" = "reopened" ]; then
+              echo "- Re-blocked count: ${{ steps.reopening-blocked.outputs.count || '0' }}"
+            elif [ "${{ github.event.action }}" = "edited" ]; then
+              echo "- Open blockers now: ${{ steps.edited-blockers.outputs.count || '0' }}"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
