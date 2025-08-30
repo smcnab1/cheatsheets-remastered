@@ -1,3 +1,4 @@
+# .github/workflows/auto-assign-when-unblocked.yml
 name: Auto-assign when unblocked
 
 on:
@@ -33,7 +34,15 @@ jobs:
             const { owner, repo } = context.repo;
             const targets = new Set();
 
-            // Helper: collect issues this item *blocks*
+            function extractIssueNumber(subject) {
+              if (!subject) return undefined;
+              if (typeof subject.number === 'number') return subject.number;
+              const url = subject.html_url || subject.url || '';
+              // URLs look like .../repos/{owner}/{repo}/issues/{number}
+              const m = url.match(/\/issues\/(\d+)(?:$|[/?#])/);
+              return m ? parseInt(m[1], 10) : undefined;
+            }
+
             async function collectDependants(number) {
               const iterator = github.paginate.iterator(
                 github.rest.issues.listEventsForTimeline,
@@ -44,32 +53,48 @@ jobs:
               );
               for await (const { data } of iterator) {
                 for (const ev of data) {
-                  if (ev.event === 'connected' && (ev.reason === 'blocks' || ev.connection_type === 'blocks')) {
-                    const n = ev?.subject?.number;
-                    if (typeof n === 'number') targets.add(n);
+                  if (ev.event !== 'connected') continue;
+
+                  // Prefer direction if present
+                  const reason = ev.reason || ev.connection_type || '';
+                  const n = extractIssueNumber(ev.subject);
+                  if (!n) continue;
+
+                  // If GitHub supplies direction, use only "blocks"
+                  if (reason === 'blocks') {
+                    targets.add(n);
+                    continue;
+                  }
+
+                  // Fallback: If direction missing, still collect. We'll validate later.
+                  // (Safer to include and let the second step check real blockers)
+                  if (!reason) {
+                    targets.add(n);
                   }
                 }
               }
             }
 
             if (context.eventName === 'pull_request') {
-              // PR closed: re-check issues it blocks
               await collectDependants(context.payload.pull_request.number);
             } else if (context.eventName === 'issues') {
               const issueNum = context.payload.issue.number;
 
-              // Always re-check the current issue's dependants when it *closes* (unblocks others).
               if (context.payload.action === 'closed') {
+                // Closed blocker: gather the issues it was blocking
                 await collectDependants(issueNum);
               }
 
-              // Optional: also re-check the issue itself on edits/labels (in case blockers changed)
+              // Also re-check the edited/labelled/reopened issue itself
               if (['opened','edited','reopened','labeled','unlabeled','transferred'].includes(context.payload.action)) {
                 targets.add(issueNum);
               }
             }
 
-            core.setOutput('list', JSON.stringify([...targets]));
+            const list = [...targets];
+            core.summary.addHeading('Auto-assign when unblocked — collector', 3)
+              .addRaw(`Targets collected: ${JSON.stringify(list)}\n`).write();
+            core.setOutput('list', JSON.stringify(list));
 
       - name: Assign any now-unblocked issues
         if: steps.targets.outputs.list != ''
@@ -77,8 +102,8 @@ jobs:
         env:
           TARGETS: ${{ steps.targets.outputs.list }}
           DEFAULT_ASSIGNEE: ${{ vars.DEFAULT_ASSIGNEE }}         # e.g. "smcnab1" or "nexoroid,smcnab1"
-          BLOCKED_LABEL: ${{ vars.BLOCKED_LABEL }}               # optional: gate by label (leave empty to ignore)
-          REMOVE_LABEL_ON_ASSIGN: ${{ vars.REMOVE_LABEL_ON_ASSIGN }} # optional: e.g. "blocked"
+          BLOCKED_LABEL: ${{ vars.BLOCKED_LABEL }}               # optional
+          REMOVE_LABEL_ON_ASSIGN: ${{ vars.REMOVE_LABEL_ON_ASSIGN }} # optional
         with:
           script: |
             const { owner, repo } = context.repo;
@@ -95,74 +120,8 @@ jobs:
               for await (const { data } of iterator) {
                 for (const ev of data) {
                   if (ev.event === 'connected' && (ev.reason === 'blocked_by' || ev.connection_type === 'blocked_by')) {
-                    const n = ev?.subject?.number;
-                    if (typeof n === 'number') openBlockers.add(n);
-                  }
-                }
-              }
-              const stillOpen = [];
-              for (const n of openBlockers) {
-                try {
-                  const r = await github.rest.issues.get({ owner, repo, issue_number: n });
-                  if (r.data.state !== 'closed') stillOpen.push(n);
-                } catch (e) {
-                  // Be conservative if fetch fails
-                  stillOpen.push(n);
-                }
-              }
-              return stillOpen;
-            }
-
-            async function fetchIssue(issueNumber) {
-              const r = await github.rest.issues.get({ owner, repo, issue_number: issueNumber });
-              return r.data;
-            }
-
-            async function assignIfUnblocked(issueNumber) {
-              const issue = await fetchIssue(issueNumber);
-              if (!issue || issue.pull_request) return;       // skip PRs
-              if (issue.state === 'closed') return;           // don't assign closed issues
-
-              const blockedLabel = (process.env.BLOCKED_LABEL || '').trim().toLowerCase();
-              const hasBlockedLabel = blockedLabel
-                ? (issue.labels || []).some(l => (typeof l === 'string' ? l : l.name).toLowerCase() === blockedLabel)
-                : true;
-
-              const openBlockers = await getOpenBlockers(issue.number);
-
-              if (openBlockers.length === 0 && hasBlockedLabel) {
-                const configured = (process.env.DEFAULT_ASSIGNEE || '').trim();
-                const candidates = configured
-                  ? configured.split(',').map(s => s.trim()).filter(Boolean)
-                  : [issue.user?.login || owner];
-
-                const already = (issue.assignees || []).map(a => a.login.toLowerCase());
-                const toAssign = candidates.filter(c => !already.includes(c.toLowerCase()));
-
-                if (toAssign.length > 0) {
-                  await github.rest.issues.addAssignees({ owner, repo, issue_number: issue.number, assignees: toAssign });
-                }
-
-                const removeLabel = (process.env.REMOVE_LABEL_ON_ASSIGN || '').trim().toLowerCase();
-                if (removeLabel) {
-                  const hasLabel = (issue.labels || []).some(l => (typeof l === 'string' ? l : l.name).toLowerCase() === removeLabel);
-                  if (hasLabel) {
-                    try {
-                      await github.rest.issues.removeLabel({ owner, repo, issue_number: issue.number, name: removeLabel });
-                    } catch (e) {
-                      core.info(`Could not remove label '${removeLabel}': ${e.message}`);
-                    }
-                  }
-                }
-
-                await core.summary
-                  .addHeading('Auto-assign when unblocked', 2)
-                  .addRaw(`• Issue #${issue.number} is now unblocked. Assigned to: ${JSON.stringify(candidates)}.\n`)
-                  .write();
-              }
-            }
-
-            const targets = JSON.parse(process.env.TARGETS || '[]');
-            for (const n of targets) {
-              await assignIfUnblocked(n);
-            }
+                    // Extract blocker number robustly
+                    const subject = ev.subject || {};
+                    const num = typeof subject.number === 'number'
+                      ? subject.number
+                      : ((subject.html_url || sub_
