@@ -1,0 +1,101 @@
+# .github/workflows/assign-unblocked-issues.yml
+name: Assign unblocked issues on close
+
+on:
+  issues:
+    types: [closed]
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  # Optional: set a default username to assign when a blocked issue has no assignees.
+  # e.g. DEFAULT_ASSIGNEE: "smcnab1"
+  DEFAULT_ASSIGNEE: "smcnab1"
+
+jobs:
+  assign-unblocked:
+    if: github.event.issue.pull_request == null  # only act on issues (not PRs)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Find issues this one was blocking
+        id: blocked
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          owner="${GITHUB_REPOSITORY%/*}"
+          repo="${GITHUB_REPOSITORY#*/}"
+          issue_number="${{ github.event.issue.number }}"
+
+          # List dependencies this issue was "blocking"
+          # Docs: GET /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocking
+          resp="$(gh api \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "/repos/$owner/$repo/issues/$issue_number/dependencies/blocking" \
+          )"
+
+          echo "$resp" | jq -c '.[]' > /tmp/blocked.json || true
+          count="$(wc -l < /tmp/blocked.json || true)"
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+
+      - name: Assign each newly unblocked issue
+        if: steps.blocked.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_ASSIGNEE: ${{ env.DEFAULT_ASSIGNEE }}
+        run: |
+          owner="${GITHUB_REPOSITORY%/*}"
+          repo="${GITHUB_REPOSITORY#*/}"
+
+          while IFS= read -r row; do
+            num=$(jq -r '.number' <<< "$row")
+            state=$(jq -r '.state'   <<< "$row")
+
+            # Skip if already closed
+            if [ "$state" != "open" ]; then
+              echo "Issue #$num is not open; skipping."
+              continue
+            fi
+
+            # Get current assignees and author for fallback assignment
+            issue_json="$(gh api -H 'X-GitHub-Api-Version: 2022-11-28' "/repos/$owner/$repo/issues/$num")"
+            assignee_count=$(jq '.assignees | length' <<< "$issue_json")
+            author=$(jq -r '.user.login'               <<< "$issue_json")
+
+            # Decide who to assign:
+            # 1) If there are already assignees, leave as-is
+            # 2) Else use DEFAULT_ASSIGNEE if set
+            # 3) Else fall back to the issue author
+            if [ "$assignee_count" -gt 0 ]; then
+              echo "Issue #$num already has assignees; skipping assignment."
+            else
+              target="${DEFAULT_ASSIGNEE:-$author}"
+              echo "Assigning @$target to #$num"
+              gh api -X POST \
+                -H 'X-GitHub-Api-Version: 2022-11-28' \
+                "/repos/$owner/$repo/issues/$num/assignees" \
+                -f "assignees[]=$target"
+
+              # Optional: add a small nudge comment + label
+              gh api -X POST \
+                -H 'X-GitHub-Api-Version: 2022-11-28' \
+                "/repos/$owner/$repo/issues/$num/comments" \
+                -f body="Unblocked by #${{ github.event.issue.number }} (now closed). Assigned to @$target to keep things moving. ✅"
+
+              # Safely add an 'unblocked' label if it exists; ignore errors if it doesn’t
+              gh api -X POST \
+                -H 'X-GitHub-Api-Version: 2022-11-28' \
+                "/repos/$owner/$repo/issues/$num/labels" \
+                -f 'labels[]'=unblocked || true
+            fi
+          done < /tmp/blocked.json
+
+      - name: Job summary
+        run: |
+          echo "### Unblocked issue assignment" >> $GITHUB_STEP_SUMMARY
+          echo "- Closed issue: #${{ github.event.issue.number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Unblocked count: ${{ steps.blocked.outputs.count }}" >> $GITHUB_STEP_SUMMARY
