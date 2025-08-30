@@ -23,6 +23,7 @@ body:
         - [ ] Create milestone in GitHub
         - [ ] Create release branch (`release/vX.Y.Z`)
         - [ ] Implement scoped features (must-have first, stretch later)
+        - [ ] Bump version in `package.json`
         - [ ] Run linting/formatting (`prettier --write .`)
         - [ ] Run tests and smoke test commands locally
         - [ ] Update internal roadmap (`ROADMAP.md`) if scope changed
@@ -44,10 +45,9 @@ body:
       label: Pre-Release / Beta
       description: Internal test cycle
       value: |
-        - [ ] Push release branch to GitHub
-        - [ ] Share pre-release build (Raycast test flight / internal testers)
+        - [ ] Submit updated extension to Raycast Store (from release branch)
         - [ ] Collect feedback and fix high-priority issues
-        - [ ] Bump version in `package.json`
+        - [ ] Await response/update push to Raycast
 
   - type: textarea
     id: tag_release
@@ -55,10 +55,11 @@ body:
       label: Tag & Release
       description: Final tagging and publishing to GitHub
       value: |
-        - [ ] Merge release branch → `main`
+        - [ ] Merge release branch → `raycast-extension`
         - [ ] Tag release (`git tag vX.Y.Z && git push --tags`)
         - [ ] Create GitHub Release with notes (link to roadmap milestone)
         - [ ] Confirm CI/build passes
+        - [ ] Confirm `main` branch synced
 
   - type: textarea
     id: publish
@@ -66,10 +67,8 @@ body:
       label: Publish
       description: Push to Raycast Store and announce
       value: |
-        - [ ] Submit updated extension to Raycast Store
         - [ ] Verify listing shows new version & features
         - [ ] Announce release (Slack, Twitter, README badge, etc.)
-        - [ ] Close milestone in GitHub and roll tasks forward if needed
 
   - type: textarea
     id: postrelease
@@ -77,6 +76,6 @@ body:
       label: Post-Release
       description: Prep for next cycle
       value: |
-        - [ ] Open new milestone (e.g. `vX.Y+1.0`)
+        - [ ] Close milestone + submit milestone update
         - [ ] Seed issues/tasks from roadmap
         - [ ] Note any carry-overs from previous cycle
