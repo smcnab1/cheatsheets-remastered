@@ -1,5 +1,8 @@
 # Cheatsheets Remastered Changelog
 
+## [1.2.0 - Caching & Search Improvements] - {PR_MERGE_DATE}
+* 
+
 ## [1.1.0 - Custom User Repos] - 2025-09-09
 
 ### Added
