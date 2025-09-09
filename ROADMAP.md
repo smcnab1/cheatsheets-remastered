@@ -5,33 +5,6 @@ Timelines are indicative and may shift based on feedback and usage.
 
 ---
 
-## 1.1.0 — User Repository Basics
-
-Introduce user-specified GitHub repositories of Markdown cheatsheets with core management.
-
-**UX & Data**
-
-* 📂 Repos Manager command: list/add/remove repositories
-* ➕ Add repo form: `owner/repo`, optional branch (default `main`/`master`)
-* 💾 Persist repo configs in `LocalStorage`
-
-**Fetching**
-
-* 🌐 Fetch repo file list via GitHub API
-* 🛑 Apply basic exclusions (non-`.md`, admin files)
-
-**Content**
-
-* 🧭 Resolution order: local → repo cache → network
-* 🏷️ Label sheets with `Repo: <name>`
-
-**Acceptance**
-
-* ✅ Add a repo and see its sheets appear in Search
-* ✅ Remove a repo and see its sheets disappear
-
----
-
 ## 1.2.0 — Caching & Search
 
 Build on user repos with caching, offline-first behaviour, and search integration.
@@ -106,6 +79,33 @@ Introduce richer repo management, metadata, and error resilience.
 ---
 
 ## ✅ Released
+
+## 1.1.0 — User Repository Basics
+
+Introduce user-specified GitHub repositories of Markdown cheatsheets with core management.
+
+**UX & Data**
+
+* 📂 Repos Manager command: list/add/remove repositories
+* ➕ Add repo form: `owner/repo`, optional branch (default `main`/`master`)
+* 💾 Persist repo configs in `LocalStorage`
+
+**Fetching**
+
+* 🌐 Fetch repo file list via GitHub API
+* 🛑 Apply basic exclusions (non-`.md`, admin files)
+
+**Content**
+
+* 🧭 Resolution order: local → repo cache → network
+* 🏷️ Label sheets with `Repo: <name>`
+
+**Acceptance**
+
+* ✅ Add a repo and see its sheets appear in Search
+* ✅ Remove a repo and see its sheets disappear
+
+---
 
 ### v1.0.0 — Local-first Foundations
 

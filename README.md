@@ -58,11 +58,15 @@
 
 ### Features
 
-- Search across custom and DevHints cheatsheets with fast filtering and tags
-- Create, edit, copy, and organise markdown cheatsheets
-- Local-first storage for your custom content.
-- Large base of sheets integrated out of the box
-- Rich tagging and favouriting with icon mapping for quick discovery
+* Built-in collection of DevHints cheatsheets (audited; outdated sheets archived)
+* Create and edit your own custom sheets
+* Import `.md` files from your GitHub repositories (optional subdirectory and file/dir exclusions)
+* Organise with tags and favourites (including repo-imported sheets)
+* One list for everything - built-in, custom, and repository sheets together
+* Local storage for offline access; repository sheets can be synced on demand
+* Smarter search with title-first matching
+* Clickable links back to GitHub for repository sheets
+* "Sync All Repositories" action with progress and error reporting
 
 ### Built with
 
@@ -99,7 +103,7 @@ npm run build
 - Show Cheatsheets: browse all
 - Create Custom Cheatsheet: compose new markdown
 - Manage Custom Cheatsheets: edit, duplicate, delete, export
-- Copy Cheatsheet: quick search and copy to clipboard
+- Manage Repos: edit, add, sync custom repos of cheatsheets
 
 
 ## Back Matter
