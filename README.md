@@ -83,7 +83,7 @@
 ### Install
 
 #### From Raycast Store (production):
-Install via [Raycast Store](https://www.raycast.com/smcnab1/cheatsheet-remastered)
+Install via [Raycast Store](https://www.raycast.com/smcnab1/cheatsheets-remastered)
 
 #### From source (development):
 
