@@ -1,5 +1,11 @@
 # Cheatsheets Remastered Changelog
 
+## [Unreleased]
+
+- Read optional repository-sheet titles, descriptions and tags from Markdown frontmatter, including cached sheets offline.
+- Show repository tags in lists and metadata in sheet details; include normalised metadata in search.
+- Ignore invalid or oversized metadata safely while preserving original Markdown, saved snapshots and existing sheet identities.
+
 ## [1.2.0 - Markdown and Sync Reliability] - 2026-11-04
 
 - Preserve original Markdown for copying and improve display of frontmatter, Unicode, tables and code examples.
