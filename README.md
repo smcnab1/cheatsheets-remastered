@@ -1,151 +1,92 @@
-<!-- TOP ROW OF BADGES -->
+# Cheatsheets Remastered
 
-[![Contributors][contributors-shield]][contributors-url]
-[![Forks][forks-shield]][forks-url]
-[![Stargazers][stars-shield]][stars-url]
-[![Issues][issues-shield]][issues-url]
-[![MIT License][license-shield]][license-url]
+Local access to bundled [DevHints](https://devhints.io/) developer references, your own Markdown and cached GitHub sheets. Browsing and searching saved content works offline.
 
-<a name="readme-top"></a>
+## Standalone source repository
 
-<!-- PROJECT LOGO -->
-<br />
-<div align="center">
-  <a href="https://raycast.com/smcnab1/cheatsheets-remastered">
-    <img src="assets/logo.png" alt="Logo" width="80" height="80">
-  </a>
+This is Sam McNab's public source and backup for **Cheatsheets Remastered**, independent of the Raycast extensions monorepo. Use `main` as the starting point for future edits.
 
-<h3 align="center">Cheatsheets Remastered</h3>
+Version **1.2.0** matches the extension accepted in [Raycast PR #33061](https://github.com/raycast/extensions/pull/33061), under `extensions/cheatsheets-remastered/` at commit [`ae62d5b76541ad0f5eb481d2730a89004aedcb10`](https://github.com/raycast/extensions/commit/ae62d5b76541ad0f5eb481d2730a89004aedcb10). Extension source, assets, tests, dependencies and notices are copied from that revision. This README, the versioned changelog heading and standalone project files are maintained here.
 
-  <p align="center">
-    A remastered Cheatsheets extension with enhanced functionality, custom sheet creation, and an improved browsing experience.
-    <br />
-    <a href="https://www.raycast.com/smcnab1/cheatsheets-remastered"><strong>Install the extension »</strong></a>
-    <br />
-    <br />
-    <a href="https://github.com/raycast/extensions/issues/new?title=%5BCheatsheets+Remastered%5D+...&template=extension_bug_report.yml&labels=extension%2Cbug&extension-url=https%3A%2F%2Fwww.raycast.com%2Fsmcnab1%2Fcheatsheets-remastered&body=%0A%3C%21--%0APlease+update+the+title+above+to+consisely+describe+the+issue%0A--%3E%0A%0A%23%23%23+Extension%0A%0Ahttps%3A%2F%2Fraycast.com%2F%23%7Bextension_path%28extension%29%7D%0A%0A%23%23%23+Description%0A%0A%3C%21--%0APlease+provide+a+clear+and+concise+description+of+what+the+bug+is.+Include+screenshots+if+needed.+Please+test+using+the+latest+version+of+the+extension%2C+Raycast+and+API.%0A--%3E%0A%0A%23%23%23+Steps+To+Reproduce%0A%0A%3C%21--%0AYour+bug+will+get+fixed+much+faster+if+the+extension+author+can+easily+reproduce+it.+Issues+without+reproduction+steps+may+be+immediately+closed+as+not+actionable.%0A--%3E%0A%0A1.+In+this+environment...%0A2.+With+this+config...%0A3.+Run+%27...%27%0A4.+See+error...%0A%0A%23%23%23+Current+Behavior%0A%0A%23%23%23+Expected+Behavior%0A%0A">Report Bug</a>
-    ·
-    <a href="https://github.com/raycast/extensions/issues/new?title=%5BCheatsheets+Remastered%5D+...&template=extension_feature_request.yml&labels=extension%2Cfeature%2Brequest&extension-url=https%3A%2F%2Fwww.raycast.com%2Fsmcnab1%2Fcheatsheets-remastered&body=%0A%3C%21--%0APlease+update+the+title+above+to+consisely+describe+the+issue%0A--%3E%0A%0A%23%23%23+Extension%0A%0A%23%7Brepository_url%28extension.latest_version%29%7D%0A%0A%23%23%23+Description%0A%0A%3C%21--%0ADescribe+the+feature+and+the+current+behavior%2Fstate.%0A--%3E%0A%0A%23%23%23+Who+will+benefit+from+this+feature%3F%0A%0A%23%23%23+Anything+else%3F%0A%0A%3C%21--%0ALinks%3F+References%3F+Anything+that+will+give+us+more+context%21%0ATip%3A+You+can+attach+images+or+log+files+by+clicking+this+area+to+highlight+it+and+then+dragging+files+in.%0A--%3E%0A%0A">Request Feature</a>
-  </p>
-</div>
+[Install from the Raycast Store](https://www.raycast.com/smcnab1/cheatsheets-remastered) · [Releases](https://github.com/smcnab1/cheatsheets-remastered/releases) · [Issues](https://github.com/smcnab1/cheatsheets-remastered/issues)
 
-<details>
-  <summary>Table of Contents</summary>
+## Commands
 
-- [About The Project](#about-the-project)
-  - [Features](#features)
-  - [Built with](#built-with)
-- [Getting started](#getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Install](#install)
-  - [Usage](#usage)
-- [Back Matter](#back-matter)
-  - [Roadmap](#roadmap)
-  - [Contributing](#contributing)
-  - [License](#license)
-  
-</details>
+| Command                   | What you can do                                                                                           |
+| ------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Show Cheatsheets          | Search titles and content; filter bundled, custom, GitHub, favorite or hidden sheets; open recent sheets. |
+| Create Custom Cheatsheet  | Write Markdown with tags and a description. Unsubmitted drafts are saved locally.                         |
+| Manage Custom Cheatsheets | View, edit and delete personal sheets.                                                                    |
+| Repo Manager              | Add GitHub repositories, choose a branch/subdirectory, sync and inspect the last successful snapshot.     |
 
-<!-- ABOUT THE PROJECT -->
-## About The Project
-<div align="center">
-  <a href="https://raycast.com/smcnab1/cheatsheets-remastered">
-    <img src="metadata/cheatsheets-remastered-1.png" alt="Screenshot" width="100%" height="auto">
-  </a>
-  </div>
-  
-**Cheatsheets Remastered** is a modern [Raycast extension](https://github.com/raycast/extensions) to quickly search, create, and manage cheatsheets. It ships with curated [DevHints](https://devhints.io/) content and lets you keep your own sheets locally. Perfect for fast recall without leaving your keyboard.
+Use **Search Within Sheet** from an open sheet (`⌘F` on macOS) to search headings and section text. Results show their parent heading and source line. **Copy Section Markdown** copies the original section; **Copy Original Markdown** copies the entire original sheet, including frontmatter and whitespace.
 
-### Features
+## GitHub setup
 
-* Built-in collection of DevHints cheatsheets (audited; outdated sheets archived)
-* Create and edit your own custom sheets
-* Import `.md` files from your GitHub repositories (optional subdirectory and file/dir exclusions)
-* Organise with tags and favourites (including repo-imported sheets)
-* One list for everything - built-in, custom, and repository sheets together
-* Local storage for offline access; repository sheets can be synced on demand
-* Smarter search with title-first matching
-* Clickable links back to GitHub for repository sheets
-* "Sync All Repositories" action with progress and error reporting
+1. Open **Repo Manager** and sign in with GitHub through Raycast's existing OAuth flow if prompted.
+2. Choose **Add Repository**. Enter the owner and repository name separately, for example `example` and `developer-notes`.
+3. Set the actual branch name (the form defaults to `main`). An optional subdirectory such as `docs` limits imported files. Select **Private Repository** for private sources.
+4. Choose **Sync Repository**. Use **Show Cheatsheets** to browse the saved content offline.
 
-### Built with
+Repository management retains the published GitHub OAuth behavior, including the `repo read:org read:user` scopes. The `repo` grant includes write access, although this extension only sends read requests. Both public and private repository sync use the OAuth token. The optional **GitHub Token** preference is retained for compatibility; it does not override repository OAuth. Existing credentials are not cleared by this update.
 
-- Raycast API
-- TypeScript + React
-- Node.js / npm
+Bundled and custom sheets do not require GitHub authentication. Do not put tokens in repository URLs, sheet content or support logs.
 
-## Getting started
+## Sync behavior
 
-### Prerequisites
+- Sync downloads one complete revision before changing saved content. A successful sync adds, updates and removes files to match that revision.
+- Failed staging (downloads, truncated/malformed trees, timeouts or cancellation) retains the previous snapshot and its successful-sync timestamp. If a storage write cannot be confirmed, check the saved content before retrying: the write may have completed.
+- A complete response containing no eligible Markdown files is a successful empty snapshot. GitHub's “empty repository/no commit” error is a failure, not permission to erase cached content.
+- Each sync is limited to **300 files**, **1 MiB per Markdown file**, **20 MiB total**, **15 seconds per request** and **2 minutes for staging**. Files download sequentially. There are no automatic network retries.
+- Use the sync toast's **Cancel Sync** action while staging. Cancellation is checked before the final storage write; a completed commit cannot be undone by canceling afterwards. Canceling a repository stops the remaining **Sync All Repositories** work.
+- Markdown files use `.md` (case-insensitive). Administrative files such as root README/license/changelog files, `.github`, paths beginning with `_`, and names containing `@` are excluded. Names such as `AJAX_Security_Cheat_Sheet.md` are included.
+- Removing a repository removes its cached sheets. Stable favorites, hidden state and history are retained so re-adding the same owner, repository and branch restores them.
+- To change owner, repository or branch, remove the entry and add it again. This prevents old cached content being relabeled as a different source. Changing a subdirectory applies on the next successful sync.
 
-- macOS with Raycast installed
+## Local data and migration
 
-### Install
+Data stays in Raycast's local extension storage; this extension does not provide cross-device sync. Bundled references are read directly from the installed assets. Remote links/images in Markdown can still require a network connection when opened/rendered.
 
-#### From Raycast Store (production):
-Install via [Raycast Store](https://www.raycast.com/smcnab1/cheatsheets-remastered)
+Version 1.2 uses a validated library snapshot. Original legacy collections remain untouched, and the previous valid snapshot is backed up before each mutation. Invalid or unreadable storage blocks writes instead of being treated as an empty library.
 
-#### From source (development):
+Repository state now identifies the GitHub owner, repository, branch and file path. If two repositories previously shared a slug such as `docs/git`, the extension cannot safely infer which one owned an old favorite, hidden marker or history record. It retains that record, shows a migration warning and leaves both sheets independent. Reapply favorites/hidden state to the intended sheet. Ambiguous historical counts are not assigned automatically.
+
+**Do not downgrade after editing data in 1.2 without backing it up.** Older versions read the retained legacy collections and will not see newer changes. See [migration and recovery notes](docs/migration.md) before any recovery work.
+
+## Troubleshooting
+
+| Symptom                             | What to check                                                                                                                                                                        |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Sheet missing                       | Clear the type filter; check **Hidden**. For imports, check branch, subdirectory and exclusions.                                                                                     |
+| Sync failed                         | Read the error; check network, access and limits, then retry. Your previous snapshot remains available.                                                                              |
+| Storage cannot be read/saved        | Retry after closing other extension commands. If it persists, preserve extension data before recovery. Do not reset storage or reinstall over unbacked-up personal sheets.           |
+| Draft changed in another command    | Copy the text you want to keep, close the form and reopen it. Concurrent edits are not silently merged.                                                                              |
+| Content looks different from GitHub | Raycast renders Markdown, not arbitrary HTML/Jekyll pages. Original source remains available for copying. Relative links in some bundled references may require **Open in Browser**. |
+
+This extension supports **macOS**.
+
+## Credits
+
+Extension: **Sam McNab / smcnab1**, under the [MIT license](LICENSE).
+
+Bundled references originate from [DevHints](https://devhints.io/) / [rstacruz/cheatsheets](https://github.com/rstacruz/cheatsheets), by Rico Sta. Cruz and contributors. Six references use historical MIT-licensed editions with targeted accuracy corrections; four sheets with unresolved permission evidence are omitted. These references are examples, not a guarantee that every tool version is covered. See [attribution notes](ATTRIBUTION.md).
+
+## Develop and contribute
+
+Use macOS with Raycast and a Node.js version supported by the pinned Raycast CLI (minimum 22.22.2).
 
 ```bash
-npm install
+npm ci
+npm run test
+npm run typecheck
+npm run lint
+npm run check-format
+npm run build
 npm run dev
 ```
 
-Build locally:
+Edit extension code in `src/` and bundled references in `assets/cheatsheets/`. Keep the index and attribution accurate when changing bundled content. The standalone icon helper remains available as `node scripts/normalize-icons.js`.
 
-```bash
-npm run build
-```
+For a future Store update, copy the extension files into `extensions/cheatsheets-remastered/` in a Raycast submission checkout and submit a focused PR there. Keep this repository's `.github/`, roadmap, release checklist and standalone documentation here. Raycast generates `raycast-env.d.ts`; do not commit it. Historical `raycast-extension` and `release/v1.2.0` branches are retained, but `main` is the current source. The legacy sync workflow only runs when `raycast-extension` is pushed or manually dispatched; avoid syncing that older branch over `main`.
 
-### Commands
-
-- Show Cheatsheets: browse all
-- Create Custom Cheatsheet: compose new markdown
-- Manage Custom Cheatsheets: edit, duplicate, delete, export
-- Manage Repos: edit, add, sync custom repos of cheatsheets
-
-
-## Back Matter
-
-<!-- CONTRIBUTING -->
-
-<a name="contributing"></a>
-
-### Contributing
-
-Contributions welcome — especially to expand and improve the default cheatsheets.
-
-- Add/Update default cheatsheets: edit markdown under `assets/cheatsheets/`
-- Tag updates: map new tags in `src/default-tags.ts`
-- Icons: add topic icons under `assets/` and optionally run `npm run normalize:icons`
-- Bugs & ideas: [open an Issue](https://github.com/smcnab1/cheatsheets-remastered/issues)
-
-PRs should briefly state:
-- What changed and why
-- Which cheatsheets were added/updated
-- Any new tags introduced
-
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-### License
-
-This project is licensed under the [MIT License](LICENSE).
-
-<!-- MARKDOWN LINKS & IMAGES -->
-
-[contributors-shield]: https://img.shields.io/github/contributors/smcnab1/cheatsheets-remastered.svg?style=for-the-badge
-[contributors-url]: https://github.com/smcnab1/cheatsheets-remastered/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/smcnab1/cheatsheets-remastered.svg?style=for-the-badge
-[forks-url]: https://github.com/smcnab1/cheatsheets-remastered/network/members
-[stars-shield]: https://img.shields.io/github/stars/smcnab1/cheatsheets-remastered.svg?style=for-the-badge
-[stars-url]: https://github.com/smcnab1/cheatsheets-remastered/stargazers
-[issues-shield]: https://img.shields.io/github/issues/smcnab1/cheatsheets-remastered.svg?style=for-the-badge
-[issues-url]: https://github.com/smcnab1/cheatsheets-remastered/issues
-[license-shield]: https://img.shields.io/github/license/smcnab1/cheatsheets-remastered.svg?style=for-the-badge
-[license-url]: https://github.com/smcnab1/cheatsheets-remastered/blob/main/LICENSE
-[product-screenshot]: metadata/cheatsheets-remastered-1.png
+Contributions should explain what changed, why, and which checks passed. See the [roadmap](ROADMAP.md), [release checklist](RELEASE_CHECKLIST.md), [changelog](CHANGELOG.md) and [attribution](ATTRIBUTION.md).

@@ -5,7 +5,13 @@ Timelines are indicative and may shift based on feedback and usage.
 
 ---
 
-## 1.2.0 — Caching & Search
+## 1.2.0 — Markdown and Sync Reliability (released 2026-11-04)
+
+The accepted [Raycast update #33061](https://github.com/raycast/extensions/pull/33061) is now the standalone source baseline. It preserves original Markdown, stages complete repository snapshots, validates and backs up local data, isolates repository state, improves search/history/drafts and adds Search Within Sheet. See [CHANGELOG.md](CHANGELOG.md) for the shipped scope.
+
+### Earlier 1.2.0 proposal (historical, not the shipped scope)
+
+The following proposal is retained for planning history. Background updates and per-repository/global token fallback were not shipped; repository sync retains GitHub OAuth. Later roadmap sections remain ideas, not claims about this release.
 
 Build on user repos with caching, offline-first behaviour, and search integration.
 
