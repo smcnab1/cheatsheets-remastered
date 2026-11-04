@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Import a single local UTF-8 Markdown file from Manage Custom Cheatsheets as an independent personal copy, with editable initial metadata and exact-content duplicate skipping.
 - Read optional repository-sheet titles, descriptions and tags from Markdown frontmatter, including cached sheets offline.
 - Show repository tags in lists and metadata in sheet details; include normalized metadata in search.
 - Show full repository descriptions above the sheet body so longer text remains readable.

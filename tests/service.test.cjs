@@ -381,3 +381,97 @@ test("successful sync keeps raw metadata source and derives titles only when rea
   assert.equal(projected[1].title, "filename");
   assert.deepEqual([...values], beforeRead);
 });
+
+test("concurrent local imports create one exact copy and preserve unrelated data and drafts", async () => {
+  seed();
+  const before = JSON.parse(values.get(LIBRARY_KEY));
+  values.set("create-custom-sheet-title", "Unfinished manual draft");
+  const input = {
+    title: "Imported 日本語",
+    content: "\uFEFF# Notes\r\nKeep trailing spaces  \r\n",
+    tags: ["CLI"],
+    description: "Personal",
+  };
+  const results = await Promise.all(Array.from({ length: 8 }, () => Service.importCustomCheatsheet(input)));
+  assert.equal(results.filter((r) => r.status === "created").length, 1);
+  assert.equal(results.filter((r) => r.status === "duplicate").length, 7);
+  const after = JSON.parse(values.get(LIBRARY_KEY));
+  assert.equal(after.custom.length, 1);
+  assert.deepEqual(after.custom[0], {
+    ...input,
+    id: results[0].sheet.id,
+    createdAt: results[0].sheet.createdAt,
+    updatedAt: results[0].sheet.updatedAt,
+  });
+  assert.match(after.custom[0].id, /^custom-/);
+  assert.deepEqual({ ...after, custom: [] }, before);
+  assert.equal(values.get("create-custom-sheet-title"), "Unfinished manual draft");
+});
+test("duplicate import does not write either snapshot or overwrite edited metadata", async () => {
+  seed();
+  const input = { title: "First", content: "# Exact source" };
+  const first = await Service.importCustomCheatsheet(input);
+  await Service.updateCustomCheatsheet(first.sheet.id, "Renamed", input.content, ["edited"], "Keep me");
+  const before = new Map(values);
+  const setItem = native.LocalStorage.setItem;
+  native.LocalStorage.setItem = async () => {
+    throw new Error("Duplicate must not attempt a write");
+  };
+  try {
+    const result = await Service.importCustomCheatsheet({ ...input, title: "Other" });
+    assert.equal(result.status, "duplicate");
+    assert.equal(result.sheet.title, "Renamed");
+    assert.deepEqual(result.sheet.tags, ["edited"]);
+    assert.deepEqual(values, before);
+  } finally {
+    native.LocalStorage.setItem = setItem;
+  }
+});
+test("same title different source imports independently; repository content is not a custom duplicate", async () => {
+  seed();
+  const a = await Service.importCustomCheatsheet({ title: "Same", content: "Old" });
+  const b = await Service.importCustomCheatsheet({ title: "Same", content: "Old\n" });
+  assert.equal(a.status, "created");
+  assert.equal(b.status, "created");
+  assert.notEqual(a.sheet.id, b.sheet.id);
+  assert.equal((await Service.getCustomCheatsheets()).length, 2);
+});
+for (const key of [BACKUP_KEY, LIBRARY_KEY])
+  test(`failed local import retains existing library: ${key}`, async () => {
+    seed();
+    const before = values.get(LIBRARY_KEY);
+    failKey = key;
+    await assert.rejects(Service.importCustomCheatsheet({ title: "New", content: "# New" }), /Cannot safely/);
+    assert.equal(values.get(LIBRARY_KEY), before);
+  });
+test("local import retry detects a saved copy after lost write acknowledgement", async () => {
+  seed();
+  const input = { title: "New", content: "# New" };
+  const setItem = native.LocalStorage.setItem;
+  native.LocalStorage.setItem = async (key, value) => {
+    await setItem(key, value);
+    if (key === LIBRARY_KEY) throw new Error("Lost acknowledgement");
+  };
+  try {
+    await assert.rejects(Service.importCustomCheatsheet(input), /Cannot safely/);
+  } finally {
+    native.LocalStorage.setItem = setItem;
+  }
+  assert.equal((await Service.importCustomCheatsheet(input)).status, "duplicate");
+  assert.equal((await Service.getCustomCheatsheets()).length, 1);
+});
+test("local import rejects cancellation corruption and blank title without changing saved data", async () => {
+  seed();
+  const before = new Map(values);
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(Service.importCustomCheatsheet({ title: "New", content: "# New" }, controller.signal), {
+    name: "AbortError",
+  });
+  await assert.rejects(Service.importCustomCheatsheet({ title: " ", content: "# New" }), /required/);
+  assert.deepEqual(values, before);
+  values.set(LIBRARY_KEY, "broken");
+  const corrupt = new Map(values);
+  await assert.rejects(Service.importCustomCheatsheet({ title: "New", content: "# New" }), /Cannot safely/);
+  assert.deepEqual(values, corrupt);
+});

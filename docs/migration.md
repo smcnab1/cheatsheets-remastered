@@ -23,6 +23,20 @@ tags: [Python, programming]
 
 Metadata is derived from cached Markdown offline, so existing sheets do not need a resync. Reading metadata does not rewrite repository snapshots, personal sheets, favorites or hidden state. Opening a sheet still records its existing view history. **Copy Original Markdown** retains the entire source, including frontmatter, line endings and whitespace. Bundled and personal-sheet metadata behavior is unchanged.
 
+## Import a local Markdown file (unreleased)
+
+In the local development build, open **Manage Custom Cheatsheets**, then choose **Import Markdown File** from Actions. This action is also available when the library is empty.
+
+1. Choose one readable UTF-8 `.md` file, up to **1 MiB**. Uppercase `.MD` is accepted. Empty, binary-like and invalid UTF-8 files are rejected.
+2. Review **Title**, **Tags** and **Description**. Valid frontmatter supplies initial metadata using the limits above; otherwise the title uses the filename. You can edit these fields before saving. Edited tags use commas as separators.
+3. Choose **Import Markdown File** to save the loaded text as a personal sheet. After a confirmed save, the manager refreshes and the form closes. You can then view, edit or delete the copy like any other custom sheet.
+
+The copy preserves the complete original text, including frontmatter, BOM, line endings and whitespace. It is loaded when you select the file; select it again to pick up later file edits. The original file is never modified. Explicitly selected files are not subject to repository filename exclusions.
+
+**Already Imported** means identical original text is already in your custom collection, including manually created sheets. Nothing is written or overwritten, even if you entered different metadata; the toast names the saved sheet. Different text creates a separate copy, even with the same title. Repository sheets are independent. There is no link to the source path, automatic update or replacement.
+
+Leaving the form before saving does not import anything or change your manual creation drafts. A file or storage error keeps the form open. If saving cannot be confirmed, check the manager before retrying: a completed copy may already exist and the retry will skip identical content. Import selections and metadata edits are not saved as drafts.
+
 ## Sync behavior
 
 - Sync downloads one complete revision before changing saved content. A successful sync adds, updates and removes files to match that revision.
@@ -81,7 +95,7 @@ Process termination during the primary write, power loss and stale-lock recovery
 3. Restore only a reviewed snapshot containing the desired newer data. Preserve the rejected value for comparison.
 4. Reopen and check content before making another change, which would roll the previous-snapshot backup forward.
 
-Do not reset Raycast storage or delete `library-v2` to repair corruption: removing it exposes stale legacy collections. No recovery/export/import command is shipped. **Copy Original Markdown** can preserve individual sheets in external UTF-8 files; also record titles, tags, descriptions and repository settings. This is separate from preserving raw extension storage.
+Do not reset Raycast storage or delete `library-v2` to repair corruption: removing it exposes stale legacy collections. No library recovery or export command is shipped. The unreleased single-file import above creates personal copies; it does not restore raw storage or bypass corrupt data. **Copy Original Markdown** can preserve individual sheets in external UTF-8 files; also record titles, tags, descriptions and repository settings. This is separate from preserving raw extension storage.
 
 ## Deletion and downgrade
 
