@@ -6,7 +6,7 @@ Local access to bundled [DevHints](https://devhints.io/) developer references, y
 
 This is Sam McNab's public source and backup for **Cheatsheets Remastered**, independent of the Raycast extensions monorepo. Use `main` as the starting point for future edits.
 
-Version **1.2.0** matches the extension accepted in [Raycast PR #33061](https://github.com/raycast/extensions/pull/33061), under `extensions/cheatsheets-remastered/` at commit [`ae62d5b76541ad0f5eb481d2730a89004aedcb10`](https://github.com/raycast/extensions/commit/ae62d5b76541ad0f5eb481d2730a89004aedcb10). Extension source, assets, tests, dependencies and notices are copied from that revision. This README, the versioned changelog heading and standalone project files are maintained here.
+The **1.2.0 baseline** matches the extension accepted in [Raycast PR #33061](https://github.com/raycast/extensions/pull/33061), under `extensions/cheatsheets-remastered/` at commit [`ae62d5b76541ad0f5eb481d2730a89004aedcb10`](https://github.com/raycast/extensions/commit/ae62d5b76541ad0f5eb481d2730a89004aedcb10). Extension source, assets, tests, dependencies and notices are copied from that revision. This README, the versioned changelog heading and standalone project files are maintained here.
 
 [Install from the Raycast Store](https://www.raycast.com/smcnab1/cheatsheets-remastered) · [Releases](https://github.com/smcnab1/cheatsheets-remastered/releases) · [Issues](https://github.com/smcnab1/cheatsheets-remastered/issues)
 
@@ -31,6 +31,27 @@ Use **Search Within Sheet** from an open sheet (`⌘F` on macOS) to search headi
 Repository management retains the published GitHub OAuth behavior, including the `repo read:org read:user` scopes. The `repo` grant includes write access, although this extension only sends read requests. Both public and private repository sync use the OAuth token. The optional **GitHub Token** preference is retained for compatibility; it does not override repository OAuth. Existing credentials are not cleared by this update.
 
 Bundled and custom sheets do not require GitHub authentication. Do not put tokens in repository URLs, sheet content or support logs.
+
+## Repository frontmatter (unreleased)
+
+Repository sheets can provide optional metadata in a YAML block at the very start of the Markdown file:
+
+```yaml
+---
+title: Jinja templates
+description: Template syntax and examples
+tags: [Python, programming]
+---
+# Jinja reference
+```
+
+- A valid `title` overrides the saved H1/filename title in lists, search and sheet details. Missing or invalid titles keep the existing title.
+- `description` appears above the sheet body as wrapped plain text and in the details sidebar. Tags appear in lists and details; all three fields are searchable. `category` and other fields are ignored.
+- Title and description must be YAML strings; tags must be a YAML sequence of strings. Quote numeric or boolean-looking values if you intend them as text. Whitespace is normalised; duplicate tags are removed without regard to case. Invalid tag entries are skipped.
+- The frontmatter block is limited to 65,536 characters. Title, description and individual tags are limited to 200, 1,000 and 64 characters before whitespace normalisation. A sequence with more than 20 entries is ignored. Oversized fields are ignored rather than truncated.
+- Missing, malformed, duplicate-key, unsupported or unclosed frontmatter uses the saved title and no metadata. YAML aliases are ignored rather than expanded. These fallbacks do not prevent viewing the sheet.
+
+Metadata is derived from cached Markdown offline, so existing sheets do not need a resync. Reading metadata does not rewrite repository snapshots, personal sheets, favorites or hidden state. Opening a sheet still records its existing view history. **Copy Original Markdown** retains the entire source, including frontmatter, line endings and whitespace. Bundled and personal-sheet metadata behavior is unchanged.
 
 ## Sync behavior
 
