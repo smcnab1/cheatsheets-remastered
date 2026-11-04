@@ -32,6 +32,8 @@ Saved content stays in Raycast's local extension storage, without cross-device s
 
 See [repository behavior and recovery](docs/migration.md) for sync limits, exclusions, troubleshooting and the **unreleased** repository-frontmatter feature. Back up local data before downgrading; older versions cannot read newer changes. Never include tokens or private sheet content in [issue reports](https://github.com/smcnab1/cheatsheets-remastered/issues).
 
+The local development build also supports [importing a Markdown file](docs/migration.md#import-a-local-markdown-file-unreleased) through **Manage Custom Cheatsheets**. This is unreleased.
+
 ## Maintenance and credits
 
 I maintain this extension as Sam McNab ([smcnab1](https://github.com/smcnab1)). Development setup and submission notes are in the [release checklist](RELEASE_CHECKLIST.md); shipped changes are in the [changelog](CHANGELOG.md).
