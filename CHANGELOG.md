@@ -4,6 +4,7 @@
 
 - Read optional repository-sheet titles, descriptions and tags from Markdown frontmatter, including cached sheets offline.
 - Show repository tags in lists and metadata in sheet details; include normalised metadata in search.
+- Show full repository descriptions above the sheet body so longer text remains readable.
 - Ignore invalid or oversized metadata safely while preserving original Markdown, saved snapshots and existing sheet identities.
 
 ## [1.2.0 - Markdown and Sync Reliability] - 2026-11-04

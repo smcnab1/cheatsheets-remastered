@@ -1,6 +1,6 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const { repositoryMetadata, displayMarkdown } = require("../.test-dist/markdown");
+const { repositoryMetadata, displayMarkdown, repositoryDisplayMarkdown } = require("../.test-dist/markdown");
 const { repositoryMatchesQuery, partitionTitleMatches } = require("../.test-dist/search");
 
 // Removing metadata extraction, bounds or scalar validation must break these tests.
@@ -83,4 +83,17 @@ test("repository search matches normalised metadata and retains path, source and
   assert.equal(repositoryMatchesQuery(olderSheet, "literal"), true);
   assert.deepEqual(partitionTitleMatches([sheet], "jinja").titles, [sheet]);
   assert.deepEqual(partitionTitleMatches([sheet], "syntax").content, [sheet]);
+});
+
+// Without the wrapped description, native metadata labels hide most of long text.
+test("repository details expose complete descriptions without interpreting metadata as Markdown", () => {
+  const source = "---\ntitle: Example\n---\n# Body\n\n```sh\nprintf hello\n```\n";
+  const description = "Readable 日本語 " + "long description ".repeat(50);
+  assert.equal(repositoryDisplayMarkdown(source, description), description + "\n\n---\n\n" + displayMarkdown(source));
+  assert.equal(repositoryDisplayMarkdown(source), displayMarkdown(source));
+  assert.equal(repositoryDisplayMarkdown(source, ""), displayMarkdown(source));
+  const markup = "![image](https://example.com/a) <b> **bold** `code` &amp;";
+  const literal = String.raw`\!\[image\]\(https\:\/\/example\.com\/a\) \<b\> \*\*bold\*\* \`code\` \&amp\;`;
+  assert.equal(repositoryDisplayMarkdown(source, markup), literal + "\n\n---\n\n" + displayMarkdown(source));
+  assert.equal(source, "---\ntitle: Example\n---\n# Body\n\n```sh\nprintf hello\n```\n");
 });

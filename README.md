@@ -46,7 +46,7 @@ tags: [Python, programming]
 ```
 
 - A valid `title` overrides the saved H1/filename title in lists, search and sheet details. Missing or invalid titles keep the existing title.
-- `description` appears in sheet details. Tags appear in lists and details; all three fields are searchable. `category` and other fields are ignored.
+- `description` appears above the sheet body as wrapped plain text and in the details sidebar. Tags appear in lists and details; all three fields are searchable. `category` and other fields are ignored.
 - Title and description must be YAML strings; tags must be a YAML sequence of strings. Quote numeric or boolean-looking values if you intend them as text. Whitespace is normalised; duplicate tags are removed without regard to case. Invalid tag entries are skipped.
 - The frontmatter block is limited to 65,536 characters. Title, description and individual tags are limited to 200, 1,000 and 64 characters before whitespace normalisation. A sequence with more than 20 entries is ignored. Oversized fields are ignored rather than truncated.
 - Missing, malformed, duplicate-key, unsupported or unclosed frontmatter uses the saved title and no metadata. YAML aliases are ignored rather than expanded. These fallbacks do not prevent viewing the sheet.

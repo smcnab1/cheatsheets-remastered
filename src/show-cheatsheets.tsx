@@ -24,7 +24,7 @@ import { showFailureToast, useFrecencySorting } from "@raycast/utils";
 
 import Service, { CustomCheatsheet, FavoriteCheatsheet, RepositorySheet } from "./service";
 import type { File as ServiceFile } from "./service";
-import { displayMarkdown } from "./markdown";
+import { displayMarkdown, repositoryDisplayMarkdown } from "./markdown";
 import { partitionTitleMatches, repositoryMatchesQuery } from "./search";
 // GitHub icon for repository cheatsheets - using built-in icon
 const githubIcon = Icon.Globe;
@@ -1002,7 +1002,7 @@ function RepositorySheetView({ sheet }: { sheet: RepositorySheet }) {
     fetchRepository();
   }, [sheet.repositoryId]);
 
-  const processedContent = displayMarkdown(sheet.content);
+  const processedContent = repositoryDisplayMarkdown(sheet.content, sheet.description);
 
   // Construct GitHub URLs
   const githubUrl = repository

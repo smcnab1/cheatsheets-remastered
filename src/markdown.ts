@@ -73,3 +73,12 @@ export function displayMarkdown(source: string, bundled = false): string {
     })
     .join("");
 }
+
+export function repositoryDisplayMarkdown(source: string, description?: string): string {
+  const body = displayMarkdown(source);
+  if (!description) return body;
+  // Metadata is plain text. Escape ASCII punctuation so links, images and HTML
+  // cannot become active Markdown when the full description wraps in the body.
+  const literal = description.replace(/[!-/:-@[-`{-~]/g, "\\$&");
+  return `${literal}\n\n---\n\n${body}`;
+}
