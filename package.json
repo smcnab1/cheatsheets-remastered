@@ -105,5 +105,8 @@
     "test": "tsc -p tsconfig.test.json && node --test tests/*.test.cjs",
     "typecheck": "tsc --noEmit",
     "check-format": "prettier --check src tests package.json eslint.config.js tsconfig*.json docs README.md RELEASE_CHECKLIST.md ROADMAP.md ATTRIBUTION.md"
+  },
+  "overrides": {
+    "minimatch@^10": "11.0.4"
   }
 }

@@ -62,9 +62,9 @@ No feature-code refactoring or dependency change is justified by this documentat
 
 ## Decision 1: dependency audit
 
-**Disposition: record and defer remediation. No risk acceptance or security change.**
+**Historical disposition: deferred during the documentation review. See the [next-update dependency maintenance notes](dependency-maintenance.md) for the subsequent fix.**
 
-The earlier `npm audit --json` run reported 22 moderate affected-package entries, no high or critical findings, rooted in one [minimatch advisory, GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249). Installed affected copies are 10.2.6 and 5.1.9; the advisory marks versions below 11.0.1 as affected. Paths run through Raycast's CLI/oclif and lint tooling. A production dependency label alone does not establish an exploitable path in the extension commands.
+The earlier `npm audit --json` run reported 22 moderate affected-package entries, no high or critical findings, rooted in one [minimatch advisory, GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249). The installed copies were 10.2.6 and 5.1.9. The advisory's affected range is `>=7.0.0 <11.0.1`, so 5.1.9 is outside its scope. Paths run through Raycast's CLI/oclif and lint tooling. A production dependency label alone does not establish an exploitable path in the extension commands.
 
 The audit offers major-version downgrades of Raycast packages for some paths and no fix for others. No compatible complete fix or extension-specific exploit was established here. I will keep remediation separate from the accepted feature and documentation changes. Dependencies, overrides and lockfile remain unchanged; no `npm audit fix` was run.
 
