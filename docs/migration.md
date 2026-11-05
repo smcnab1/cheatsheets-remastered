@@ -2,7 +2,7 @@
 
 Saved sheets can be browsed offline. This guide covers repository metadata, sync limits, troubleshooting and local-data recovery.
 
-## Repository frontmatter (unreleased)
+## Repository frontmatter
 
 Repository sheets can provide optional metadata in a YAML block at the very start of the Markdown file:
 
@@ -23,9 +23,9 @@ tags: [Python, programming]
 
 Metadata is derived from cached Markdown offline, so existing sheets do not need a resync. Reading metadata does not rewrite repository snapshots, personal sheets, favorites or hidden state. Opening a sheet still records its existing view history. **Copy Original Markdown** retains the entire source, including frontmatter, line endings and whitespace. Bundled and personal-sheet metadata behavior is unchanged.
 
-## Import a local Markdown file (unreleased)
+## Import a local Markdown file
 
-In the local development build, open **Manage Custom Cheatsheets**, then choose **Import Markdown File** from Actions. This action is also available when the library is empty.
+Open **Manage Custom Cheatsheets**, then choose **Import Markdown File** from Actions. This action is also available when the library is empty.
 
 1. Choose one readable UTF-8 `.md` file, up to **1 MiB**. Uppercase `.MD` is accepted. Empty, binary-like and invalid UTF-8 files are rejected.
 2. Review **Title**, **Tags** and **Description**. Valid frontmatter supplies initial metadata using the limits above; otherwise the title uses the filename. You can edit these fields before saving. Edited tags use commas as separators.
@@ -95,7 +95,7 @@ Process termination during the primary write, power loss and stale-lock recovery
 3. Restore only a reviewed snapshot containing the desired newer data. Preserve the rejected value for comparison.
 4. Reopen and check content before making another change, which would roll the previous-snapshot backup forward.
 
-Do not reset Raycast storage or delete `library-v2` to repair corruption: removing it exposes stale legacy collections. No library recovery or export command is shipped. The unreleased single-file import above creates personal copies; it does not restore raw storage or bypass corrupt data. **Copy Original Markdown** can preserve individual sheets in external UTF-8 files; also record titles, tags, descriptions and repository settings. This is separate from preserving raw extension storage.
+Do not reset Raycast storage or delete `library-v2` to repair corruption: removing it exposes stale legacy collections. No library recovery or export command is shipped. The single-file import above creates personal copies; it does not restore raw storage or bypass corrupt data. **Copy Original Markdown** can preserve individual sheets in external UTF-8 files; also record titles, tags, descriptions and repository settings. This is separate from preserving raw extension storage.
 
 ## Deletion and downgrade
 

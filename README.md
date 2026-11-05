@@ -30,9 +30,9 @@ Sync uses GitHub OAuth with `repo read:org read:user` scopes. The `repo` grant i
 
 Saved content stays in Raycast's local extension storage, without cross-device sync. Downloading updates and opening remote links or images can require a connection. A failed download retains the previous repository snapshot.
 
-See [repository behavior and recovery](docs/migration.md) for sync limits, exclusions, troubleshooting and the **unreleased** repository-frontmatter feature. Back up local data before downgrading; older versions cannot read newer changes. Never include tokens or private sheet content in [issue reports](https://github.com/smcnab1/cheatsheets-remastered/issues).
+See [repository behavior and recovery](docs/migration.md) for sync limits, exclusions, troubleshooting and repository-frontmatter metadata. Back up local data before downgrading; older versions cannot read newer changes. Never include tokens or private sheet content in [issue reports](https://github.com/smcnab1/cheatsheets-remastered/issues).
 
-The local development build also supports [importing a Markdown file](docs/migration.md#import-a-local-markdown-file-unreleased) through **Manage Custom Cheatsheets**. This is unreleased.
+You can also [import a Markdown file](docs/migration.md#import-a-local-markdown-file) through **Manage Custom Cheatsheets**. Repository metadata and local imports are available in the [published update](https://github.com/raycast/extensions/pull/33143).
 
 ## Maintenance and credits
 

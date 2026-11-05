@@ -2,6 +2,14 @@
 
 Initial review on 4 November 2026 against `fix/repository-frontmatter` at `06f191d3d5642b995f8c31cc31023f1f5f93a1a1` in `smcnab1/cheatsheets-remastered`.
 
+## Maintenance update: 5 November 2026
+
+[Raycast PR #33143](https://github.com/raycast/extensions/pull/33143) merged at `32c5ba98af4dc3162dfd0ff3e8d8e3ef35b8fe94` and [publication was confirmed](https://github.com/raycast/extensions/pull/33143#issuecomment-6649076226). This repository now carries the accepted runtime, tests, screenshots, API 2.11.0 dependency lock and exact published changelog. The Store review corrections include shared `useForm` validation and import field placeholders.
+
+README, recovery guidance and roadmap now describe the released features. The obsolete workflow that copied `raycast-extension` over `main` has been removed, and the release issue template follows the current checklist. Historical branches are retained for reference. New development starts from current `main`.
+
+The review below is historical evidence, including its original scope and approval boundaries. It is not the current release status. Dependency advisories and repository settings were not changed by this sync; there is still no test/build PR workflow. Current development and submission instructions are in [RELEASE_CHECKLIST.md](../RELEASE_CHECKLIST.md).
+
 ## Delivery update: 4 November 2026
 
 The original review below records the earlier preparation state. [Feature PR #51](https://github.com/smcnab1/cheatsheets-remastered/pull/51) merged using a merge commit at `bc037e2dd863e1f7dce1b6ef6436acf1a6a1fe3c`, preserving the accepted implementation and `bc089e40f13290a7f08705b7188c6cec28165a87`, a native-QA correction that displays full descriptions as wrapped plain text. The correction passed 155 automated tests, typecheck, lint, formatting, build, distribution integrity and one independent review with no actionable findings. Native QA used a separate synthetic extension namespace; cached content and personal records were preserved. Repository management was checked only as far as the GitHub sign-in screen; no OAuth grant or network sync was performed.

@@ -1,125 +1,29 @@
-# Cheatsheets Remastered · Roadmap
+# Cheatsheets Remastered Roadmap
 
-This document tracks planned updates and ideas for future versions of **Cheatsheets Remastered**.
-Timelines are indicative and may shift based on feedback and usage.
+This roadmap separates released features from future work. Plans may change based on feedback and use;
+no delivery dates are set.
 
----
+## Released
 
-## 1.2.0 — Markdown and Sync Reliability (released 2026-11-04)
+The **Metadata and Markdown Import** update was published on **5 November 2026** through [Raycast PR #33143](https://github.com/raycast/extensions/pull/33143). It includes:
 
-The accepted [Raycast update #33061](https://github.com/raycast/extensions/pull/33061) is now the standalone source baseline. It preserves original Markdown, stages complete repository snapshots, validates and backs up local data, isolates repository state, improves search/history/drafts and adds Search Within Sheet. See [CHANGELOG.md](CHANGELOG.md) for the shipped scope.
+- **Repository frontmatter** ([#51](https://github.com/smcnab1/cheatsheets-remastered/pull/51)): Titles, descriptions and tags for display and search, including saved sheets offline. Original Markdown is preserved.
+- **Single-file Markdown import** ([#53](https://github.com/smcnab1/cheatsheets-remastered/pull/53)): Import one local Markdown file as an independent personal copy, edit its initial metadata and skip identical saved content.
 
-### Earlier 1.2.0 proposal (historical, not the shipped scope)
+Earlier releases include **Markdown and Sync Reliability** (4 November 2026), v1.1.0 and v1.0.0. See [CHANGELOG.md](CHANGELOG.md) for the accepted release history. The first two updates were developed as v1.3.0 and v1.2.0; Raycast uses descriptive release headings rather than a manifest version.
 
-The following proposal is retained for planning history. Background updates and per-repository/global token fallback were not shipped; repository sync retains GitHub OAuth. Later roadmap sections remain ideas, not claims about this release.
+## Planned
 
-Build on user repos with caching, offline-first behaviour, and search integration.
+- Copy individual fenced code blocks.
+- Refresh and selectively expand useful developer references, prioritizing accuracy and relevance.
+- Improve sync error messages and retry guidance.
 
-**Content & Offline**
+## Under Consideration
 
-* 📡 Offline cache per repo, namespace isolated
-* 🔄 Manual refresh action
-* ⏳ Background update (opt-in) with frequency preference
+- Optional background refresh and more flexible sync and authentication preferences.
+- Cache and search-index controls.
+- Bulk actions for downloading, favoriting or exporting sheets.
+- Two-way sync for personal sheets through gists or private repositories.
+- Repository icon customization and optional icon metadata.
 
-**Search**
-
-* 🔍 Include repo sheets in title/slug search
-* 🔎 Full-text search across cached repo content (case-insensitive, 2+ chars)
-
-**Errors & Limits**
-
-* 🔑 Support optional GitHub token per repo and global fallback
-* 🛡️ Handle network timeouts with fallback to cache
-
----
-
-## 1.3.0 — Advanced Repo Features
-
-Introduce richer repo management, metadata, and error resilience.
-
-**UX Enhancements**
-
-* 🔄 Per-repo Refresh & Remove in Repos Manager
-* 🏷️ Repo icon display in results
-
-**Data & Schema**
-
-* 🗂️ Schema extended with `{ subdir, addedAt, lastSyncAt }`
-* 📅 Show “Last synced” metadata in repo list
-
-**Errors & Limits**
-
-* ⏳ Rate-limit aware backoff with retry UI
-* 🛡️ More robust error categorisation (unauthorised, missing repo, invalid branch)
-
----
-
-## 1.4.0 — Metadata & Tags
-
-* 🏷️ Parse optional frontmatter (`title`, `tags`, `description`, `icon`)
-* 🔀 Merge frontmatter metadata with derived tags
-
----
-
-## 1.5.0 — Preferences & Controls
-
-* ⚙️ Centralised preferences: tokens, offline sync frequency, indexing toggles
-* 🧹 Clear caches & rebuild index actions
-
----
-
-## 1.6.0 — Slugging & Collisions
-
-* 🧩 Deterministic slugging for nested folders (`subdir/foo`)
-* 🛡️ Collision detection across assets, repos, and customs
-* 🔖 Disambiguation with source prefixes
-
----
-
-## 🔮 Later / Nice-to-have
-
-* 🔗 Two-way sync for custom sheets (gists or private repos)
-* 🗂️ Multi-select actions (offline download, favourite, export)
-* 🎨 Smarter icon inference + optional per-repo icon directory
-
----
-
-## ✅ Released
-
-## 1.1.0 — User Repository Basics
-
-Introduce user-specified GitHub repositories of Markdown cheatsheets with core management.
-
-**UX & Data**
-
-* 📂 Repos Manager command: list/add/remove repositories
-* ➕ Add repo form: `owner/repo`, optional branch (default `main`/`master`)
-* 💾 Persist repo configs in `LocalStorage`
-
-**Fetching**
-
-* 🌐 Fetch repo file list via GitHub API
-* 🛑 Apply basic exclusions (non-`.md`, admin files)
-
-**Content**
-
-* 🧭 Resolution order: local → repo cache → network
-* 🏷️ Label sheets with `Repo: <name>`
-
-**Acceptance**
-
-* ✅ Add a repo and see its sheets appear in Search
-* ✅ Remove a repo and see its sheets disappear
-
----
-
-### v1.0.0 — Local-first Foundations
-
-* ✨ Local-first defaults: prefer `assets/cheatsheets` over remote
-* 🔍 Content search across local defaults in Search view
-* 📝 Attribution moved to action menu for local sheets
-* 🔄 GitHub Actions sync job to pull upstream DevHints into `assets/cheatsheets`
-
----
-
-💡 Got an idea or request? [Open an issue](https://github.com/smcnab1/cheatsheets-remastered/issues/new) with context and acceptance criteria.
+These ideas need further evaluation and are not delivery commitments.
