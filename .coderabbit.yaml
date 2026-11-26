@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-GB
+tone_instructions: "Prioritise correctness, regressions, privacy and concrete failure scenarios. Avoid cosmetic preferences and speculative refactors. Keep findings concise."
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  high_level_summary_instructions: "Summarise the practical impact in up to three short bullets."
+  estimate_code_review_effort: false
+  assess_linked_issues: false
+  related_issues: false
+  collapse_walkthrough: true
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: false
+    auto_incremental_review: true
+  path_instructions:
+    - path: "src/**"
+      instructions: "Check typed Raycast API usage against the locked SDK, keyboard actions, accessible names, actionable errors and compatibility with existing preferences. Preserve exact source Markdown, saved library and draft identities. Check that incomplete syncs and stale edits cannot overwrite saved content and OAuth permissions stay scoped to the operation."
+    - path: "package.json"
+      instructions: "Verify command entry points, preference identifiers, permissions and runtime dependencies against supported Raycast and TypeScript versions."
