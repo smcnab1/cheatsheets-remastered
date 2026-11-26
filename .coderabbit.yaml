@@ -13,6 +13,7 @@ reviews:
   poem: false
   auto_review:
     enabled: true
+    ignore_title_keywords: ["[upstream sync]"]
     drafts: false
     auto_incremental_review: true
   path_instructions:
@@ -20,3 +21,5 @@ reviews:
       instructions: "Check typed Raycast API usage against the locked SDK, keyboard actions, accessible names, actionable errors and compatibility with existing preferences. Preserve exact source Markdown, saved library and draft identities. Check that incomplete syncs and stale edits cannot overwrite saved content and OAuth permissions stay scoped to the operation."
     - path: "package.json"
       instructions: "Verify command entry points, preference identifiers, permissions and runtime dependencies against supported Raycast and TypeScript versions."
+    - path: "{tests,scripts,.github/workflows}/**"
+      instructions: "Flag weakened TypeScript, build, lint or regression checks. Keep automated validation distinct from native Raycast, accessibility and live integration testing."
