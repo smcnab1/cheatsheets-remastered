@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-GB
+tone_instructions: "Prioritise correctness, regressions, privacy and concrete failure scenarios. Avoid cosmetic preferences and speculative refactors. Keep findings concise."
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  high_level_summary_instructions: "Summarise the practical impact in up to three short bullets."
+  estimate_code_review_effort: false
+  assess_linked_issues: false
+  related_issues: false
+  collapse_walkthrough: true
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: false
+    auto_incremental_review: true
+  path_instructions:
+    - path: "src/**"
+      instructions: "Check source Markdown fidelity, complete repository syncs and preservation of saved sheets and drafts on errors. Use AGENTS.md for the storage and OAuth contracts."
