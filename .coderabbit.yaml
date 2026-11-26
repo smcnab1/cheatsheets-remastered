@@ -18,3 +18,5 @@ reviews:
   path_instructions:
     - path: "src/**"
       instructions: "Check source Markdown fidelity, complete repository syncs and preservation of saved sheets and drafts on errors. Use AGENTS.md for the storage and OAuth contracts."
+    - path: ".github/workflows/**"
+      instructions: "Preserve the standalone build, tests, type checks, lint and formatting checks."
