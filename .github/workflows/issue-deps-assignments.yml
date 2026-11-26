@@ -20,7 +20,7 @@ jobs:
     steps:
       - name: Create Nexoroid installation token
         id: app-token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1
         with:
           app-id: ${{ secrets.NEXOROID_APP_ID }}
           private-key: ${{ secrets.NEXOROID_APP_PRIVATE_KEY }}
