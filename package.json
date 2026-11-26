@@ -94,7 +94,7 @@
     "@types/react": "^19.3.0",
     "eslint": "^10.15.0",
     "prettier": "^3.5.3",
-    "typescript": "^5.8.2"
+    "typescript": "^7.0.2"
   },
   "scripts": {
     "build": "ray build -e dist -o dist",
